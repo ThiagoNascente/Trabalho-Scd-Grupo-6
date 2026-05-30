@@ -1,0 +1,77 @@
+## Descrição do CosmoDock
+
+A solução adota uma Arquitetura Baseada em Microsserviços e Orientada a Eventos (EDA), sendo fragmentado em componentes especialistas que utilizam diferentes modelos de concorrência e se comunicam por múltiplos protocolos. O fluxo de jogo adota o padrão de Servidor Autoritativo, onde o cliente web apenas envia comandos de entrada (teclado/mouse) e renderiza o estado visual, enquanto o servidor valida e processa toda a lógica de jogo, colisões e pontuação.
+   
+### Frontend (Cliente Web)
+
+**Tecnologias**: HTML5 (Canvas API) e JavaScript nativo (ES6+).
+
+**Responsabilidade**: Apresentar a interface de login/registro, o menu de seleção dos 3 tipos de jogos e renderizar a partida em tempo real.
+
+**Mecanismo de Concorrência**: Event-driven no navegador (manipulação assíncrona de eventos de teclado e rede via WebSockets).
+
+### Serviço de Autenticação e Usuários (Auth Service)
+
+**Tecnologias**: ASP.NET Core (C#), Entity Framework Core, PostgreSQL.
+
+**Responsabilidade**: Gerenciamento de contas, persistência de credenciais, hashing seguro de senhas (criptografia em nível de aplicação) e emissão de tokens JWT (JSON Web Tokens) assinados para controle de acesso.
+
+**Mecanismo de Concorrência:** Multi-threading nativo do Kestrel/ASP.NET, gerenciando requisições HTTP paralelas por meio de um pool de threads gerenciado pelo CLR.
+
+### Gateway de Conexão e Sala de Espera (Game Gateway & Lobby)
+
+**Tecnologias**: Node.js, Socket.io (WebSockets).
+
+**Responsabilidade**: Atuar como o ponto único de entrada para conexões persistentes bidirecionais com os clientes. Realiza a validação inicial do token JWT e gerencia o matchmaking (salas de espera). Ele não processa a física do jogo; apenas roteia de forma eficiente os inputs dos jogadores para os motores de jogo correspondentes.
+
+**Mecanismo de Concorrência**: Modelo de I/O Não-Bloqueante baseado em Single-Threaded Event Loop, ideal para lidar com milhares de conexões WebSockets simultâneas sem sobrecarga de memória por thread.
+
+### Motores de Jogo (Game Engines)
+
+**Tecnologias**: Node.js (módulos isolados ou processos independentes executando a lógica matemática do jogo).
+
+**Responsabilidade**: Executar o loop principal do jogo (ex.: 60 atualizações por segundo). Recebe as ações de movimentação e tiro vindas do Gateway, calcula a física, detecta colisões entre as naves e projéteis, atualiza os pontos de vida (HP) e devolve o estado atualizado do mapa para o Gateway retransmitir aos jogadores.
+
+**Mecanismo de Concorrência**: Loops de temporização assíncronos (setInterval/setImmediate) operando de forma independente para cada partida ativa, evitando que o processamento de uma sala interfira na latência de outra.
+
+### Serviço de Classificação e Background (Score & Maintenance Service)
+
+**Tecnologias**: Python (Flask ou FastAPI), Redis, PostgreSQL (compartilhado ou via réplica).
+
+**Responsabilidade**: Consumir dados de fim de partida em background, atualizar tabelas de classificação (Leaderboards) globais e por jogo, e executar rotinas automáticas de manutenção (como expurgar dados corrompidos ou sanitizar logs).
+
+**Mecanismo de Concorrência**: Processamento assíncrono de filas e workers baseados em processos/threads para isolar o cálculo de rankings da API REST que serve o dashboard de pontuação.
+
+### Message Broker (Mensageria Assíncrona)
+
+**Tecnologias**: Apache Kafka.
+
+**Responsabilidade**: Agir como o barramento de eventos central do sistema, transportando mensagens de encerramento de partidas e conquistas de forma totalmente desacoplada e persistente.
+
+### Paradigmas de Interação e Comunicação
+
+O sistema demonstra a convivência de três paradigmas distintos de comunicação distribuída:
+
+**Cliente-Servidor** Clássico (REST & WebSockets): Utilizado na comunicação do navegador com o ecossistema. REST (HTTP/S) é empregado para ações síncronas de ciclo curto (Login, Registro, Consulta ao Leaderboard). WebSockets (Socket.io) estabelece o canal full-duplex de baixa latência para o fluxo contínuo de dados do jogo em execução.
+
+**Chamada de Procedimento Remoto** (gRPC síncrono): Quando um cliente tenta se conectar ao Game Gateway via WebSocket, o Gateway precisa validar se aquele token JWT ainda é válido e ativo. Para isso, o Node.js realiza uma chamada RPC síncrona (bloqueante para aquela conexão específica) diretamente para o Auth Service em ASP.NET Core, garantindo uma validação centralizada e de alto desempenho.
+
+**Mensageria / Publish-Subscribe** (Apache Kafka assíncrono): Quando uma partida de naves termina no Game Engine (Node.js), ele publica um evento no tópico match-events do Kafka contendo o ID dos jogadores e o resultado da partida. O Game Engine se desvincula imediatamente dessa informação e continua livre para processar o próximo jogo. O Score Service (Python), que está inscrito (subscrito) nesse tópico, consome a mensagem no seu próprio ritmo, processa os novos rankings e persiste as alterações.
+
+## Justificativa Arquitetural Frente aos Requisitos
+
+**Serviço acessível a múltiplos clientes na Internet**: A infraestrutura na AWS utilizará um Application Load Balancer (ALB) como porta de entrada, distribuindo o tráfego HTTP e WebSocket entre as instâncias EC2, permitindo o acesso público escalável.
+
+**Uso de mais de uma linguagem de programação**: O ecossistema integra C# (segurança e confiabilidade no Auth), JavaScript/TypeScript (alta performance de I/O orientado a eventos no Gateway e reuso de código nos Motores de Jogo) e Python (flexibilidade e manipulação de dados no serviço de pontuação).
+
+**Processamento de dados concorrente no lado servidor**: O loop de física dos 3 jogos roda inteiramente dentro do ambiente Node.js do lado do servidor de forma concorrente, isolando os estados de cada partida em execução.
+
+**Mecanismos de interação remota síncrona e assíncrona**: Implementado com gRPC síncrono para validação de sessões críticas e Apache Kafka assíncrono para o fluxo de persistência de resultados de partidas.
+
+### Replicação e particionamento de dados e funcionalidades
+
+**Particionamento Funcional**: Os 3 jogos de naves rodam em instâncias ou processos separados do Game Engine. Se o servidor do "Jogo 1" sofrer uma sobrecarga, os servidores do "Jogo 2" e "Jogo 3" continuam operando normalmente sem degradação de performance.
+
+**Replicação de Dados**: O banco de dados PostgreSQL pode ser configurado em uma topologia Primary-Replica na AWS, onde a instância primária recebe as escritas de novos usuários e resultados, e as réplicas atendem às leituras concorrentes para montar a tela de Leaderboard sem onerar o nó principal.
+
+**Consistência de dados e disponibilidade**: Se o Score Service (Python) ou o banco de dados falharem temporariamente, o Apache Kafka retém todas as mensagens de fim de partida de forma persistente em disco. Assim que o serviço for restabelecido, o processamento é retomado do ponto onde parou, garantindo Consistência Eventual e impedindo a perda de pontuação dos usuários, elevando a tolerância a falhas do sistema.

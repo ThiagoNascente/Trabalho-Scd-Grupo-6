@@ -1,0 +1,1 @@
+Aqui é exposto cada documentação de cada estratégia/tecnologia empregada na implementação.
