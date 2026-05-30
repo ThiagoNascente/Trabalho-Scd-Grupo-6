@@ -1,0 +1,22 @@
+# .gitignore
+
+# Dependências do Node.js
+node_modules/
+npm-debug.log
+
+# Diretórios do .NET
+auth-service/bin/
+auth-service/obj/
+
+# Variáveis de Ambiente e Arquivos Locais
+.env
+.env.local
+
+# Arquivos do Sistema Operacional
+.DS_Store
+Thumbs.db
+
+# Diretórios da IDE
+.vscode/
+.vs/
+.idea/
