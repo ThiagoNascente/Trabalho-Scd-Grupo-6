@@ -51,6 +51,29 @@ public class AuthController : ControllerBase
         return Ok(new { token });
     }
 
+    [HttpGet("wins/{username}")]
+    public async Task<IActionResult> GetWins(string username)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == username);
+        if (user == null)
+            return NotFound("User not found.");
+
+        return Ok(new { wins = user.Wins });
+    }
+
+    [HttpPost("wins/{username}/increment")]
+    public async Task<IActionResult> IncrementWins(string username)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == username);
+        if (user == null)
+            return NotFound("User not found.");
+
+        user.Wins++;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { wins = user.Wins });
+    }
+
     private string GenerateJwtToken(User user)
     {
         var jwtSettings = _config.GetSection("JwtSettings");

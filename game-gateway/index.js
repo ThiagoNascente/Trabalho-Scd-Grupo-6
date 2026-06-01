@@ -11,6 +11,7 @@ const io = new Server(server, {
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_that_should_be_long_enough_for_hmac_sha256_in_production";
+const AUTH_API_URL = process.env.AUTH_API_URL || "http://localhost:5000/api/auth";
 
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
@@ -40,7 +41,7 @@ const VELOCIDADE_ASTEROIDE_BASE = 3;
 function j2_enviarListaSalas(io) {
     const listaDisponivel = Object.keys(salasJogo2)
         .filter(id => Object.keys(salasJogo2[id].jogadores).length < 4 && !salasJogo2[id].emAndamento)
-        .map(id => ({ id: id, jogadores: Object.keys(salasJogo2[id].jogadores).length }));
+        .map(id => ({ id: id, hostName: salasJogo2[id].hostName, jogadores: Object.keys(salasJogo2[id].jogadores).length }));
     io.emit('listaSalas', listaDisponivel);
 }
 
@@ -51,14 +52,25 @@ const salasJogo3 = {};
 const DEG_TO_RAD = Math.PI / 180;
 const j3_getPlayerColor = (index) => ['#00ff00', '#0000ff', '#ffff00', '#ff00ff'][index % 4];
 function j3_enviarListaSalas(io) {
-    io.emit('j3_updateRoomList', Object.keys(salasJogo3).filter(r => !salasJogo3[r].isGameRunning));
+    const listaDisponivel = Object.keys(salasJogo3)
+        .filter(r => !salasJogo3[r].isGameRunning)
+        .map(r => ({ id: r, hostName: salasJogo3[r].hostName }));
+    io.emit('j3_updateRoomList', listaDisponivel);
 }
 
 io.on('connection', (socket) => {
   console.log(`[+] User connected: ${socket.user.sub} (Socket ID: ${socket.id})`);
 
   playerStats[socket.id] = { wins: 0, username: socket.user.sub };
-  socket.emit('updateWins', playerStats[socket.id].wins);
+  fetch(`${AUTH_API_URL}/wins/${socket.user.sub}`)
+      .then(res => res.json())
+      .then(data => {
+          if (data && data.wins !== undefined) {
+              playerStats[socket.id].wins = data.wins;
+              socket.emit('updateWins', data.wins);
+          }
+      })
+      .catch(err => console.error("Erro ao buscar wins", err));
 
   socket.on('join_game_lobby', (data) => {
       if (data.gameId === 'jogo1') {
@@ -113,7 +125,7 @@ io.on('connection', (socket) => {
 
   // ---------------- EVENTOS DO JOGO 2 ----------------
   socket.on('criarSala', (idSala) => {
-      if (!salasJogo2[idSala]) salasJogo2[idSala] = { jogadores: {}, projeteis: [], asteroides: [], emAndamento: false, pontos: 0, loop: null };
+      if (!salasJogo2[idSala]) salasJogo2[idSala] = { hostName: socket.user.sub, jogadores: {}, projeteis: [], asteroides: [], emAndamento: false, pontos: 0, loop: null };
       j2_entrarNaSala(socket, idSala);
   });
   socket.on('entrarSala', (idSala) => {
@@ -158,7 +170,7 @@ io.on('connection', (socket) => {
   // ---------------- EVENTOS DO JOGO 3 ----------------
   socket.on('j3_createRoom', (roomName) => {
       if (salasJogo3[roomName]) { socket.emit('j3_errorMsg', 'Já existe uma sala com este nome.'); return; }
-      salasJogo3[roomName] = { players: {}, enemies: [], playerBullets: [], enemyBullets: [], isGameRunning: false, playerCount: 0, waveManager: { time: 0, bossSpawned: false } };
+      salasJogo3[roomName] = { hostName: socket.user.sub, players: {}, enemies: [], playerBullets: [], enemyBullets: [], isGameRunning: false, playerCount: 0, waveManager: { time: 0, bossSpawned: false } };
       socket.emit('j3_roomCreated', roomName); j3_enviarListaSalas(io);
   });
   socket.on('j3_joinRoom', (roomName) => {
@@ -268,7 +280,11 @@ function handleHit(room, shooterId) {
   if (shooterId === room.hostId) room.p1Score++; else room.p2Score++;
   if (room.p1Score >= 2 || room.p2Score >= 2) {
       const winnerId = room.p1Score >= 2 ? room.hostId : room.guestId;
-      if (playerStats[winnerId]) { playerStats[winnerId].wins++; io.to(winnerId).emit('updateWins', playerStats[winnerId].wins); }
+      if (playerStats[winnerId]) { 
+          playerStats[winnerId].wins++; 
+          fetch(`${AUTH_API_URL}/wins/${playerStats[winnerId].username}/increment`, { method: 'POST' }).catch(err => console.error("Erro ao incrementar wins", err));
+          io.to(winnerId).emit('updateWins', playerStats[winnerId].wins); 
+      }
       const winnerName = playerStats[winnerId] ? playerStats[winnerId].username : 'Comandante';
       io.to(room.id).emit('matchOver', { reason: `${winnerName} Venceu a Partida!`, winnerId: winnerId });
       io.in(room.id).socketsLeave(room.id); delete rooms[room.id]; io.emit('roomList', getOpenRooms());

@@ -48,5 +48,40 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
     restart: unless-stopped
 
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: spaceship_auth
+    ports:
+      - "5000:5000"
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=authdb;Username=postgres;Password=password
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  game-gateway:
+    build:
+      context: ./game-gateway
+      dockerfile: Dockerfile
+    container_name: spaceship_gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - AUTH_API_URL=http://auth-service:5000/api/auth
+    depends_on:
+      - auth-service
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: spaceship_frontend
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
 volumes:
   postgres_data:

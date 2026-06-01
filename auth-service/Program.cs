@@ -62,6 +62,14 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ADD COLUMN \"Wins\" integer NOT NULL DEFAULT 0;");
+    }
+    catch
+    {
+        // Ignora se a coluna já existir.
+    }
 }
 
 app.Run("http://0.0.0.0:5000");

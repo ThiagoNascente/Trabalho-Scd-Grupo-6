@@ -2,63 +2,29 @@
 
 Uma plataforma unificada para jogos multiplayer online via navegador, rodando sob uma arquitetura de microsserviços.
 
-## 📦 Dependências (Ubuntu)
+## 📦 Dependências
 
-Para rodar este projeto em uma máquina Ubuntu (Linux), você precisará instalar as seguintes ferramentas:
+Para rodar este projeto em qualquer máquina, você precisará apenas do:
 
-1. **Docker e Docker Compose** (Para rodar o Banco de Dados PostgreSQL):
-   ```bash
-   sudo apt update
-   sudo apt install docker.io docker-compose
-   ```
-
-2. **Node.js e NPM** (Para o Game Gateway):
-   ```bash
-   sudo apt install nodejs npm
-   ```
-
-3. **.NET 8.0 SDK** (Para o Serviço de Autenticação):
-   ```bash
-   sudo apt install dotnet-sdk-8.0
-   ```
-
-4. **Python 3** (Para servir o Frontend estático de forma simples):
-   ```bash
-   sudo apt install python3
-   ```
+1. **Docker e Docker Compose** (ou Docker Desktop)
+   - Todos os serviços (Backend, Gateway e Frontend) e o banco de dados rodam inteiramente via contêineres, dispensando a necessidade de instalar ferramentas como Python, Node.js ou o SDK do .NET localmente.
 
 ---
 
 ## 🚀 Como Executar
 
-Você precisará abrir **4 terminais** (ou abas de terminal) e executar os comandos abaixo na raiz do projeto (`spaceship-game`):
+Você só precisará abrir **1 terminal** na raiz do projeto (`spaceship-game`):
 
-### Terminal 1: Infraestrutura (Banco de Dados)
-Sobe o banco PostgreSQL que guarda os usuários:
+### Subir a Infraestrutura (Banco de Dados, APIs, Gateway e Frontend)
+Este comando constrói e liga automaticamente toda a frota do jogo:
 ```bash
-docker-compose up -d
+sudo docker compose up -d --build
 ```
 
-### Terminal 2: Serviço de Autenticação (.NET)
-Este serviço rodará na porta `5000`.
+### Encerrar o Servidor
+Para matar todas as execuções e liberar as portas:
 ```bash
-cd auth-service
-dotnet run
-```
-
-### Terminal 3: Game Gateway (Node.js)
-Este é o coração dos jogos (WebSocket), rodará na porta `3000`.
-```bash
-cd game-gateway
-npm install
-npm start
-```
-
-### Terminal 4: Frontend (Python Server)
-Servidor simples para entregar a interface web na porta `8080`.
-```bash
-cd frontend
-python3 -m http.server 8080
+sudo docker compose down
 ```
 
 ### 🎮 Como Jogar

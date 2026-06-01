@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,90 +15,324 @@
             --panel-bg: rgba(31, 33, 40, 0.6);
             --border-color: rgba(255, 255, 255, 0.1);
         }
-        
-        * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+
+        * {
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
 
         body {
             background: radial-gradient(circle at bottom, #1b0a2b 0%, var(--bg-color) 100%);
-            color: #ffffff; margin: 0; min-height: 100vh; display: flex;
-            justify-content: center; align-items: center; overflow: hidden;
+            color: #ffffff;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
         }
 
         .stars {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: transparent; z-index: -1; pointer-events: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            z-index: -1;
+            pointer-events: none;
         }
 
         .glass-panel {
-            background: var(--panel-bg); backdrop-filter: blur(12px); border: 1px solid var(--border-color);
-            border-radius: 16px; padding: 40px; width: 100%; max-width: 450px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); text-align: center;
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 40px;
+            width: 100%;
+            max-width: 450px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            text-align: center;
         }
 
-        h1 { margin-top: 0; font-weight: 800; background: -webkit-linear-gradient(45deg, #e0aaff, #7b2cbf); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 28px; }
-        h2 { font-weight: 600; font-size: 22px; margin-bottom: 25px; }
-
-        .input-group { margin-bottom: 20px; text-align: left; }
-        .input-group label { display: block; margin-bottom: 8px; font-size: 14px; color: #ccc; }
-        input[type="text"], input[type="password"] {
-            width: 100%; padding: 12px 15px; border-radius: 8px; border: 1px solid var(--border-color);
-            background-color: rgba(0, 0, 0, 0.4); color: white; font-size: 16px; outline: none; transition: border-color 0.3s;
+        h1 {
+            margin-top: 0;
+            font-weight: 800;
+            background: -webkit-linear-gradient(45deg, #e0aaff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 28px;
         }
-        input[type="text"]:focus, input[type="password"]:focus { border-color: var(--primary); }
+
+        h2 {
+            font-weight: 600;
+            font-size: 22px;
+            margin-bottom: 25px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 12px 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background-color: rgba(0, 0, 0, 0.4);
+            color: white;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            border-color: var(--primary);
+        }
 
         .btn {
             background: linear-gradient(135deg, var(--primary) 0%, #5a189a 100%);
-            color: white; border: none; padding: 14px 24px; width: 100%; font-size: 16px; font-weight: 600;
-            cursor: pointer; border-radius: 8px; transition: transform 0.2s, box-shadow 0.2s; margin-top: 10px;
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            width: 100%;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
         }
-        .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 20px -10px var(--primary); }
-        .btn:active { transform: translateY(0); }
-        .btn:disabled { background: #333; color: #777; cursor: not-allowed; box-shadow: none; transform: none; }
 
-        .link-text { display: inline-block; margin-top: 20px; font-size: 14px; color: #a0a0a0; cursor: pointer; text-decoration: underline; }
-        .link-text:hover { color: white; }
-        .error-message { color: #ff4d4d; font-size: 14px; margin-bottom: 15px; min-height: 20px; }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -10px var(--primary);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            background: #333;
+            color: #777;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .link-text {
+            display: inline-block;
+            margin-top: 20px;
+            font-size: 14px;
+            color: #a0a0a0;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .link-text:hover {
+            color: white;
+        }
+
+        .error-message {
+            color: #ff4d4d;
+            font-size: 14px;
+            margin-bottom: 15px;
+            min-height: 20px;
+        }
 
         /* VIEWS */
-        #auth-container { display: block; }
-        #dashboard-container { display: none; max-width: 600px; }
-        #game1-lobby { display: none; max-width: 600px; }
-        #game-area { display: none; max-width: 1000px; width: 1000px;}
-        #game2-lobby { display: none; max-width: 600px; }
-        #game2-waiting { display: none; max-width: 500px; }
-        #game2-area { display: none; max-width: 800px; width: 800px; }
-        #game3-lobby { display: none; max-width: 600px; }
-        #game3-waiting { display: none; max-width: 500px; }
-        #game3-area { display: none; max-width: 800px; width: 800px; }
-
-        /* DASHBOARD */
-        .game-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 30px; }
-        .game-card { background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; transition: background 0.3s, transform 0.3s; }
-        .game-card:hover { background: rgba(255,255,255,0.1); transform: translateY(-5px); }
-
-        /* LOBBY JOGOS */
-        .win-badge { background: rgba(138, 43, 226, 0.2); padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 1.2rem; color: #e0aaff; display: inline-block; margin-bottom: 20px; border: 1px solid rgba(138, 43, 226, 0.4); }
-        .room-list { list-style: none; padding: 0; margin-top: 20px; text-align: left; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 10px; min-height: 100px; border: 1px solid var(--border-color);}
-        .room-item { display: flex; justify-content: space-between; padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); align-items: center;}
-        .room-item:last-child { border: none; }
-        .room-item button { width: auto; padding: 8px 16px; margin: 0; font-size: 14px;}
-
-        /* GAME AREA */
-        .hud { display: flex; justify-content: space-between; background: rgba(0,0,0,0.5); padding: 15px 20px; border-radius: 8px 8px 0 0; font-size: 1.2rem; font-weight: bold; align-items: center; border: 1px solid var(--border-color); border-bottom: none;}
-        .score-p1 { color: #00ffff; }
-        .score-p2 { color: #ff00ff; }
-        canvas { background: #111; border: 1px solid var(--border-color); border-radius: 0 0 8px 8px; display: block; box-shadow: 0 0 30px rgba(138, 43, 226, 0.1); }
-        
-        .overlay-text {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            font-size: 6rem; font-weight: 800; color: #e0aaff; text-shadow: 0 0 20px #8a2be2;
-            pointer-events: none; text-align: center; width: 100%;
+        #auth-container {
+            display: block;
         }
 
-        .loader { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; display: none; vertical-align: middle; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        #dashboard-container {
+            display: none;
+            max-width: 600px;
+        }
+
+        #game1-lobby {
+            display: none;
+            max-width: 600px;
+        }
+
+        #game-area {
+            display: none;
+            max-width: 1000px;
+            width: 1000px;
+        }
+
+        #game2-lobby {
+            display: none;
+            max-width: 600px;
+        }
+
+        #game2-waiting {
+            display: none;
+            max-width: 500px;
+        }
+
+        #game2-area {
+            display: none;
+            max-width: 800px;
+            width: 800px;
+        }
+
+        #game3-lobby {
+            display: none;
+            max-width: 600px;
+        }
+
+        #game3-waiting {
+            display: none;
+            max-width: 500px;
+        }
+
+        #game3-area {
+            display: none;
+            max-width: 800px;
+            width: 800px;
+        }
+
+        /* DASHBOARD */
+        .game-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .game-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            transition: background 0.3s, transform 0.3s;
+        }
+
+        .game-card:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-5px);
+        }
+
+        /* LOBBY JOGOS */
+        .win-badge {
+            background: rgba(138, 43, 226, 0.2);
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: #e0aaff;
+            display: inline-block;
+            margin-bottom: 20px;
+            border: 1px solid rgba(138, 43, 226, 0.4);
+        }
+
+        .room-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 20px;
+            text-align: left;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 10px;
+            min-height: 100px;
+            border: 1px solid var(--border-color);
+        }
+
+        .room-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            align-items: center;
+        }
+
+        .room-item:last-child {
+            border: none;
+        }
+
+        .room-item button {
+            width: auto;
+            padding: 8px 16px;
+            margin: 0;
+            font-size: 14px;
+        }
+
+        /* GAME AREA */
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px 20px;
+            border-radius: 8px 8px 0 0;
+            font-size: 1.2rem;
+            font-weight: bold;
+            align-items: center;
+            border: 1px solid var(--border-color);
+            border-bottom: none;
+        }
+
+        .score-p1 {
+            color: #00ffff;
+        }
+
+        .score-p2 {
+            color: #ff00ff;
+        }
+
+        canvas {
+            background: #111;
+            border: 1px solid var(--border-color);
+            border-radius: 0 0 8px 8px;
+            display: block;
+            box-shadow: 0 0 30px rgba(138, 43, 226, 0.1);
+        }
+
+        .overlay-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 6rem;
+            font-weight: 800;
+            color: #e0aaff;
+            text-shadow: 0 0 20px #8a2be2;
+            pointer-events: none;
+            text-align: center;
+            width: 100%;
+        }
+
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, .3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            display: none;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 </head>
+
 <body>
 
     <div class="stars" id="stars"></div>
@@ -125,7 +360,8 @@
     <!-- TELA DE DASHBOARD -->
     <div class="glass-panel" id="dashboard-container">
         <h1>Command Center</h1>
-        <p style="color: #bbb;">Conexão Neural Estabelecida. Bem-vindo, <span id="display-user" style="color:white; font-weight:bold;"></span>.</p>
+        <p style="color: #bbb;">Conexão Neural Estabelecida. Bem-vindo, <span id="display-user"
+                style="color:white; font-weight:bold;"></span>.</p>
         <div id="socket-status" style="margin-top:15px; font-size: 14px; color: #f39c12;">Conectando ao Gateway...</div>
         <div class="game-grid">
             <div class="game-card">
@@ -148,78 +384,115 @@
 
     <!-- TELA DO LOBBY - JOGO 1 -->
     <div class="glass-panel" id="game1-lobby">
-        <button class="btn" onclick="backToDashboard()" style="width:auto; padding: 5px 15px; position:absolute; top: 15px; left: 15px; background: transparent; border: 1px solid #555;">&larr; Voltar</button>
+        <button class="btn" onclick="backToDashboard()"
+            style="width:auto; padding: 5px 15px; position:absolute; top: 15px; left: 15px; background: transparent; border: 1px solid #555;">&larr;
+            Voltar</button>
         <h1>Batalha Espacial</h1>
         <div class="win-badge">Suas Vitórias Globais: <span id="winCount">0</span></div><br>
         <button class="btn" onclick="createRoom()">Criar Nova Sala de Combate</button>
         <h2 style="margin-top: 40px; text-align: left; font-size: 18px;">Salas Abertas</h2>
-        <ul id="roomList" class="room-list"><li style="text-align: center; color: #888;">Buscando sinais no espaço...</li></ul>
+        <ul id="roomList" class="room-list">
+            <li style="text-align: center; color: #888;">Buscando sinais no espaço...</li>
+        </ul>
     </div>
 
     <!-- TELA DA BATALHA (CANVAS) JOGO 1 -->
     <div id="game-area">
         <div class="hud">
             <div>Rodada <span id="roundNumber">1</span></div>
-            <div>Placar: <span class="score-p1" id="p1Score">0</span> x <span class="score-p2" id="p2Score">0</span></div>
-            <button class="btn" onclick="leaveRoom()" style="width: auto; padding: 8px 16px; margin:0; background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);">Abandonar</button>
+            <div>Placar: <span class="score-p1" id="p1Score">0</span> x <span class="score-p2" id="p2Score">0</span>
+            </div>
+            <button class="btn" onclick="leaveRoom()"
+                style="width: auto; padding: 8px 16px; margin:0; background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);">Abandonar</button>
         </div>
-        <div style="position: relative;"><canvas id="gameCanvas" width="1000" height="600"></canvas><div id="overlay" class="overlay-text"></div></div>
+        <div style="position: relative;"><canvas id="gameCanvas" width="1000" height="600"></canvas>
+            <div id="overlay" class="overlay-text"></div>
+        </div>
     </div>
 
     <!-- TELA DO LOBBY - JOGO 2 -->
     <div class="glass-panel" id="game2-lobby">
-        <button class="btn" onclick="backToDashboard()" style="width:auto; padding: 5px 15px; position:absolute; top: 15px; left: 15px; background: transparent; border: 1px solid #555;">&larr; Voltar</button>
+        <button class="btn" onclick="backToDashboard()"
+            style="width:auto; padding: 5px 15px; position:absolute; top: 15px; left: 15px; background: transparent; border: 1px solid #555;">&larr;
+            Voltar</button>
         <h1>Cinturão de Asteroides</h1>
         <p style="color: #bbb; margin-bottom: 20px;">Sobreviva aos asteroides com até 4 jogadores!</p>
-        <div class="input-group"><input type="text" id="j2-input-sala" placeholder="Nome da Nova Sala" autocomplete="off"></div>
-        <button class="btn" onclick="j2_criarSala()" style="background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);">Criar Sala</button>
+        <div class="input-group"><input type="text" id="j2-input-sala" placeholder="Nome da Nova Sala"
+                autocomplete="off"></div>
+        <button class="btn" onclick="j2_criarSala()"
+            style="background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);">Criar Sala</button>
         <h2 style="margin-top: 40px; text-align: left; font-size: 18px;">Salas Abertas</h2>
-        <ul id="j2-roomList" class="room-list"><li style="text-align: center; color: #888;">Buscando sinais no espaço...</li></ul>
+        <ul id="j2-roomList" class="room-list">
+            <li style="text-align: center; color: #888;">Buscando sinais no espaço...</li>
+        </ul>
     </div>
 
     <!-- TELA DE AGUARDANDO NO LOBBY - JOGO 2 -->
     <div class="glass-panel" id="game2-waiting">
         <h2>Lobby da Sala: <span id="j2-nome-sala" style="color:#e0aaff;"></span></h2>
-        <p>Jogadores na sala: <span id="j2-qtd-jogadores" style="color: #00ffff; font-weight: bold; font-size: 20px;">1/4</span></p>
-        <button class="btn" onclick="j2_iniciarPartida()" style="background: linear-gradient(135deg, #e67e22 0%, #d35400 100%); margin-top:20px;">Iniciar Partida</button>
-        <button class="btn" onclick="j2_sairDaSala()" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); margin-top: 15px;">Abandonar Sala</button>
+        <p>Jogadores na sala: <span id="j2-qtd-jogadores"
+                style="color: #00ffff; font-weight: bold; font-size: 20px;">1/4</span></p>
+        <button class="btn" onclick="j2_iniciarPartida()"
+            style="background: linear-gradient(135deg, #e67e22 0%, #d35400 100%); margin-top:20px;">Iniciar
+            Partida</button>
+        <button class="btn" onclick="j2_sairDaSala()"
+            style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); margin-top: 15px;">Abandonar
+            Sala</button>
     </div>
 
     <!-- TELA DA BATALHA - JOGO 2 (CANVAS) -->
     <div id="game2-area">
         <div class="hud">
             <div>Sobrevivência de Asteroides</div>
-            <button class="btn" onclick="j2_abandonarPartida()" style="width: auto; padding: 8px 16px; margin:0; background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);">Abandonar</button>
+            <button class="btn" onclick="j2_abandonarPartida()"
+                style="width: auto; padding: 8px 16px; margin:0; background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);">Abandonar</button>
         </div>
-        <div style="position: relative;"><canvas id="j2-gameCanvas" width="800" height="600" style="width: 800px; height: 600px;"></canvas><div id="j2-overlay" class="overlay-text" style="color: #ff3333;"></div></div>
+        <div style="position: relative;"><canvas id="j2-gameCanvas" width="800" height="600"
+                style="width: 800px; height: 600px;"></canvas>
+            <div id="j2-overlay" class="overlay-text" style="color: #ff3333;"></div>
+        </div>
     </div>
 
     <!-- TELA DO LOBBY - JOGO 3 -->
     <div class="glass-panel" id="game3-lobby">
-        <button class="btn" onclick="backToDashboard()" style="width:auto; padding: 5px 15px; position:absolute; top: 15px; left: 15px; background: transparent; border: 1px solid #555;">&larr; Voltar</button>
+        <button class="btn" onclick="backToDashboard()"
+            style="width:auto; padding: 5px 15px; position:absolute; top: 15px; left: 15px; background: transparent; border: 1px solid #555;">&larr;
+            Voltar</button>
         <h1>Defesa de Frota</h1>
         <p style="color: #bbb; margin-bottom: 20px;">Derrote a Nave Mãe em um combate frenético.</p>
-        <div class="input-group"><input type="text" id="j3-input-sala" placeholder="Nome da Missão" autocomplete="off"></div>
-        <button class="btn" onclick="j3_createRoom()" style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);">Criar Missão</button>
+        <div class="input-group"><input type="text" id="j3-input-sala" placeholder="Nome da Missão" autocomplete="off">
+        </div>
+        <button class="btn" onclick="j3_createRoom()"
+            style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);">Criar Missão</button>
         <h2 style="margin-top: 40px; text-align: left; font-size: 18px;">Missões em Aberto</h2>
-        <ul id="j3-roomList" class="room-list"><li style="text-align: center; color: #888;">Buscando frotas...</li></ul>
+        <ul id="j3-roomList" class="room-list">
+            <li style="text-align: center; color: #888;">Buscando frotas...</li>
+        </ul>
     </div>
 
     <!-- TELA DE AGUARDANDO NO LOBBY - JOGO 3 -->
     <div class="glass-panel" id="game3-waiting">
         <h2>Missão: <span id="j3-nome-sala" style="color:#e0aaff;"></span></h2>
-        <p>Jogadores na frota: <span id="j3-qtd-jogadores" style="color: #00ffff; font-weight: bold; font-size: 20px;">1/4</span></p>
-        <button class="btn" onclick="j3_startGame()" style="background: linear-gradient(135deg, #e67e22 0%, #d35400 100%); margin-top:20px;">Lançar Frota</button>
-        <button class="btn" onclick="j3_leaveRoom()" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); margin-top: 15px;">Abortar</button>
+        <p>Jogadores na frota: <span id="j3-qtd-jogadores"
+                style="color: #00ffff; font-weight: bold; font-size: 20px;">1/4</span></p>
+        <button class="btn" onclick="j3_startGame()"
+            style="background: linear-gradient(135deg, #e67e22 0%, #d35400 100%); margin-top:20px;">Lançar
+            Frota</button>
+        <button class="btn" onclick="j3_leaveRoom()"
+            style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); margin-top: 15px;">Abortar</button>
     </div>
 
     <!-- TELA DA BATALHA - JOGO 3 (CANVAS) -->
     <div id="game3-area">
         <div class="hud">
             <div>Defesa de Frota</div>
-            <button class="btn" onclick="j3_leaveRoom()" style="width: auto; padding: 8px 16px; margin:0; background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);">Abortar</button>
+            <button class="btn" onclick="j3_leaveRoom()"
+                style="width: auto; padding: 8px 16px; margin:0; background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);">Abortar</button>
         </div>
-        <div style="position: relative;"><canvas id="j3-gameCanvas" width="800" height="600" style="width: 800px; height: 600px;"></canvas><div id="j3-overlay" class="overlay-text"></div></div>
+        <div style="position: relative;"><canvas id="j3-gameCanvas" width="800" height="600"
+                style="width: 800px; height: 600px;"></canvas>
+            <div id="j3-overlay" class="overlay-text"></div>
+        </div>
     </div>
 
     <script>
@@ -228,7 +501,8 @@
         // ==========================================
         let isLoginMode = true;
         const HOST = window.location.hostname;
-        const API_URL = `http://${HOST}:5000/api/auth`;
+        const PROTOCOL = window.location.protocol;
+        const API_URL = `${PROTOCOL}//${HOST}:5000/api/auth`;
         let socket;
 
         function toggleAuthMode() {
@@ -246,6 +520,8 @@
             const btnText = document.getElementById('btn-text');
             const loader = document.getElementById('btn-loader');
             if (!user || !pass) { errorMsg.innerText = "Preencha todos os campos."; return; }
+            if (user.length < 4 || user.length > 30) { errorMsg.innerText = "O nome de usuário deve ter entre 4 e 30 caracteres."; return; }
+            if (pass.length < 4 || pass.length > 30) { errorMsg.innerText = "A senha deve ter entre 4 e 30 caracteres."; return; }
             errorMsg.innerText = ''; btnText.style.display = 'none'; loader.style.display = 'inline-block'; document.getElementById('btn-submit').disabled = true;
 
             const endpoint = isLoginMode ? '/login' : '/register';
@@ -254,12 +530,12 @@
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username: user, password: pass })
                 });
-                let data; try { data = await response.json(); } catch(e) { data = await response.text(); }
+                let data; try { data = await response.json(); } catch (e) { data = await response.text(); }
                 if (!response.ok) throw new Error(data.message || data || "Erro de autenticação");
 
-                if (!isLoginMode) { alert("Conta criada com sucesso! Faça login agora."); toggleAuthMode(); } 
+                if (!isLoginMode) { alert("Conta criada com sucesso! Faça login agora."); toggleAuthMode(); }
                 else { localStorage.setItem('spaceship_token', data.token); localStorage.setItem('spaceship_user', user); showDashboard(); }
-            } catch (err) { errorMsg.innerText = err.message || "Erro de conexão com o servidor."; } 
+            } catch (err) { errorMsg.innerText = err.message || "Erro de conexão com o servidor."; }
             finally { btnText.style.display = 'inline-block'; loader.style.display = 'none'; document.getElementById('btn-submit').disabled = false; }
         }
 
@@ -281,7 +557,7 @@
         function connectSocket() {
             const token = localStorage.getItem('spaceship_token');
             const statusText = document.getElementById('socket-status');
-            socket = io(`http://${HOST}:3000`, { auth: { token: token } });
+            socket = io(`${PROTOCOL}//${HOST}:3000`, { auth: { token: token } });
 
             socket.on('connect', () => {
                 statusText.innerText = '✔️ Conectado ao Gateway Seguro.'; statusText.style.color = '#2ecc71';
@@ -326,8 +602,15 @@
             });
             socket.on('matchOver', (data) => {
                 inGame = false; document.getElementById('overlay').innerText = data.reason;
-                for(let id in localState.players) localState.players[id].targetX = localState.players[id].x;
-                setTimeout(() => { document.getElementById('overlay').innerText = ''; document.getElementById('game-area').style.display = 'none'; document.getElementById('game1-lobby').style.display = 'block'; localState = { players: {}, lasers: [] }; ctx.clearRect(0, 0, canvas.width, canvas.height); }, 3000);
+                for (let id in localState.players) localState.players[id].targetX = localState.players[id].x;
+                setTimeout(() => {
+                    document.getElementById('overlay').innerText = '';
+                    if (document.getElementById('game-area').style.display !== 'none') {
+                        document.getElementById('game-area').style.display = 'none';
+                        document.getElementById('game1-lobby').style.display = 'block';
+                    }
+                    localState = { players: {}, lasers: [] }; ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }, 3000);
             });
 
             // ---------------- EVENTOS JOGO 2 ----------------
@@ -336,7 +619,7 @@
                 if (salas.length === 0) { roomListEl.innerHTML = '<li style="text-align: center; color: #888;">Nenhuma sala aberta. Crie uma!</li>'; return; }
                 salas.forEach(sala => {
                     const li = document.createElement('li'); li.className = 'room-item';
-                    li.innerHTML = `<span>Sala <strong style="color:white;">${sala.id}</strong> (${sala.jogadores}/4)</span><button class="btn" onclick="j2_entrarSala('${sala.id}')">Entrar</button>`;
+                    li.innerHTML = `<span>Sala de: <strong style="color:white;">${sala.hostName || sala.id}</strong> (${sala.jogadores}/4)</span><button class="btn" onclick="j2_entrarSala('${sala.id}')">Entrar</button>`;
                     roomListEl.appendChild(li);
                 });
             });
@@ -344,7 +627,7 @@
                 document.getElementById('j2-qtd-jogadores').innerText = `${jogadores.length}/4`;
                 document.getElementById('game2-lobby').style.display = 'none'; document.getElementById('game2-waiting').style.display = 'block';
             });
-            socket.on('partidaIniciada', () => { 
+            socket.on('partidaIniciada', () => {
                 document.getElementById('game2-waiting').style.display = 'none'; document.getElementById('game2-area').style.display = 'block';
                 j2_inGame = true; j2_keys = { left: false, right: false };
             });
@@ -352,12 +635,24 @@
             socket.on('fimDeJogo', (pontos) => {
                 j2_inGame = false; const overlay = document.getElementById('j2-overlay');
                 overlay.innerHTML = `Impacto Detectado!<br><span style="font-size:2rem;color:#fff;">Asteroides Destruídos: ${pontos}</span>`;
-                setTimeout(() => { overlay.innerHTML = ''; document.getElementById('game2-area').style.display = 'none'; document.getElementById('game2-lobby').style.display = 'block'; }, 4000);
+                setTimeout(() => {
+                    overlay.innerHTML = '';
+                    if (document.getElementById('game2-area').style.display !== 'none') {
+                        document.getElementById('game2-area').style.display = 'none';
+                        document.getElementById('game2-lobby').style.display = 'block';
+                    }
+                }, 4000);
             });
             socket.on('jogadorDesconectado', () => {
                 j2_inGame = false; const overlay = document.getElementById('j2-overlay');
                 overlay.innerHTML = `Partida Abortada<br><span style="font-size:1.5rem;color:#aaa;">Alguém caiu.</span>`;
-                setTimeout(() => { overlay.innerHTML = ''; document.getElementById('game2-area').style.display = 'none'; document.getElementById('game2-lobby').style.display = 'block'; }, 4000);
+                setTimeout(() => {
+                    overlay.innerHTML = '';
+                    if (document.getElementById('game2-area').style.display !== 'none') {
+                        document.getElementById('game2-area').style.display = 'none';
+                        document.getElementById('game2-lobby').style.display = 'block';
+                    }
+                }, 4000);
             });
             socket.on('erroSala', (msg) => { alert(msg); });
 
@@ -367,7 +662,7 @@
                 if (roomList.length === 0) { listElement.innerHTML = '<li style="text-align: center; color: #888;">Nenhuma missão aberta.</li>'; return; }
                 roomList.forEach(room => {
                     const li = document.createElement('li'); li.className = 'room-item';
-                    li.innerHTML = `<span>Missão: <strong style="color:white;">${room}</strong></span><button class="btn" onclick="j3_joinRoom('${room}')">Entrar</button>`;
+                    li.innerHTML = `<span>Missão de: <strong style="color:white;">${room.hostName || room.id}</strong></span><button class="btn" onclick="j3_joinRoom('${room.id}')">Entrar</button>`;
                     listElement.appendChild(li);
                 });
             });
@@ -385,9 +680,16 @@
             socket.on('j3_gameState', (state) => { j3_gameState = state; });
             socket.on('j3_gameOver', (data) => {
                 j3_inGame = false; const overlay = document.getElementById('j3-overlay');
-                if (data.won) { overlay.innerHTML = `Vitória!<br><span style="font-size:2rem;color:#fff;">A Nave Mãe foi destruída!</span>`; } 
+                if (data.won) { overlay.innerHTML = `Vitória!<br><span style="font-size:2rem;color:#fff;">A Nave Mãe foi destruída!</span>`; }
                 else { overlay.innerHTML = `Derrota!<br><span style="font-size:2rem;color:#fff;">Sua frota caiu.</span>`; }
-                setTimeout(() => { overlay.innerHTML = ''; document.getElementById('game3-area').style.display = 'none'; document.getElementById('game3-lobby').style.display = 'block'; j3_ctx.clearRect(0,0,800,600); }, 4000);
+                setTimeout(() => {
+                    overlay.innerHTML = '';
+                    if (document.getElementById('game3-area').style.display !== 'none') {
+                        document.getElementById('game3-area').style.display = 'none';
+                        document.getElementById('game3-lobby').style.display = 'block';
+                    }
+                    j3_ctx.clearRect(0, 0, 800, 600);
+                }, 4000);
             });
         }
 
@@ -425,7 +727,7 @@
         // GAME 2 LOGIC
         // ==========================================
         function openGame2Lobby() { document.getElementById('dashboard-container').style.display = 'none'; document.getElementById('game2-lobby').style.display = 'block'; socket.emit('join_game_lobby', { gameId: 'jogo2' }); }
-        function j2_criarSala() { const sala = document.getElementById('j2-input-sala').value; if(sala) { socket.emit('criarSala', sala); document.getElementById('j2-nome-sala').innerText = sala; } }
+        function j2_criarSala() { const sala = document.getElementById('j2-input-sala').value; if (sala) { socket.emit('criarSala', sala); document.getElementById('j2-nome-sala').innerText = sala; } }
         function j2_entrarSala(sala) { socket.emit('entrarSala', sala); document.getElementById('j2-nome-sala').innerText = sala; }
         function j2_iniciarPartida() { socket.emit('iniciarPartida'); }
         function j2_sairDaSala() { socket.emit('sairDaSala'); document.getElementById('game2-waiting').style.display = 'none'; document.getElementById('game2-lobby').style.display = 'block'; }
@@ -435,7 +737,7 @@
         function j2_desenharAsteroide(x, y, raio) {
             j2_ctx.fillStyle = '#888'; j2_ctx.beginPath();
             for (let i = 0; i < 6; i++) {
-                const angulo = (i / 6) * Math.PI * 2; const raioIrregular = raio + (Math.sin(angulo * 3) * 6); 
+                const angulo = (i / 6) * Math.PI * 2; const raioIrregular = raio + (Math.sin(angulo * 3) * 6);
                 const ax = x + Math.cos(angulo) * raioIrregular; const ay = y + Math.sin(angulo) * raioIrregular;
                 if (i === 0) j2_ctx.moveTo(ax, ay); else j2_ctx.lineTo(ax, ay);
             }
@@ -454,8 +756,8 @@
         let j2_keys = { left: false, right: false };
         window.addEventListener('keydown', (e) => {
             if (!j2_inGame) return;
-            if (e.key === 'ArrowLeft' || e.key === 'a') { if(!j2_keys.left) { j2_keys.left = true; socket.emit('acao', { tipo: 'mover', direcao: 'esquerda' }); } }
-            if (e.key === 'ArrowRight' || e.key === 'd') { if(!j2_keys.right) { j2_keys.right = true; socket.emit('acao', { tipo: 'mover', direcao: 'direita' }); } }
+            if (e.key === 'ArrowLeft' || e.key === 'a') { if (!j2_keys.left) { j2_keys.left = true; socket.emit('acao', { tipo: 'mover', direcao: 'esquerda' }); } }
+            if (e.key === 'ArrowRight' || e.key === 'd') { if (!j2_keys.right) { j2_keys.right = true; socket.emit('acao', { tipo: 'mover', direcao: 'direita' }); } }
             if (e.key === ' ') { socket.emit('acao', { tipo: 'atirar' }); }
         });
         window.addEventListener('keyup', (e) => {
@@ -468,15 +770,15 @@
         // GAME 3 LOGIC
         // ==========================================
         function openGame3Lobby() { document.getElementById('dashboard-container').style.display = 'none'; document.getElementById('game3-lobby').style.display = 'block'; socket.emit('join_game_lobby', { gameId: 'jogo3' }); }
-        function j3_createRoom() { const room = document.getElementById('j3-input-sala').value; if(room) socket.emit('j3_createRoom', room); }
+        function j3_createRoom() { const room = document.getElementById('j3-input-sala').value; if (room) socket.emit('j3_createRoom', room); }
         function j3_joinRoom(room) { socket.emit('j3_joinRoom', room); }
         function j3_startGame() { socket.emit('j3_startGame'); }
         function j3_leaveRoom() { socket.emit('j3_leaveRoom'); j3_inGame = false; document.getElementById('game3-area').style.display = 'none'; document.getElementById('game3-waiting').style.display = 'none'; document.getElementById('game3-lobby').style.display = 'block'; }
-        
+
         const j3_canvas = document.getElementById('j3-gameCanvas'); const j3_ctx = j3_canvas.getContext('2d'); let j3_inGame = false; let j3_gameState = null;
         function j3_drawTriangle(x, y, color, isEnemy = false) {
             j3_ctx.fillStyle = color; j3_ctx.beginPath();
-            if (isEnemy) { j3_ctx.moveTo(x, y + 15); j3_ctx.lineTo(x - 15, y - 15); j3_ctx.lineTo(x + 15, y - 15); } 
+            if (isEnemy) { j3_ctx.moveTo(x, y + 15); j3_ctx.lineTo(x - 15, y - 15); j3_ctx.lineTo(x + 15, y - 15); }
             else { j3_ctx.moveTo(x, y - 15); j3_ctx.lineTo(x - 15, y + 15); j3_ctx.lineTo(x + 15, y + 15); }
             j3_ctx.fill();
         }
@@ -498,10 +800,10 @@
             if (!j3_inGame || !j3_gameState) { requestAnimationFrame(j3_gameLoop); return; }
             j3_ctx.clearRect(0, 0, j3_canvas.width, j3_canvas.height);
 
-            if (j3_gameState.players) { Object.values(j3_gameState.players).forEach(p => { if (p.isAlive) { j3_drawTriangle(p.x, p.y, p.color, false); j3_ctx.shadowBlur=15; j3_ctx.shadowColor=p.color; j3_ctx.fill(); j3_ctx.shadowBlur=0; } }); }
+            if (j3_gameState.players) { Object.values(j3_gameState.players).forEach(p => { if (p.isAlive) { j3_drawTriangle(p.x, p.y, p.color, false); j3_ctx.shadowBlur = 15; j3_ctx.shadowColor = p.color; j3_ctx.fill(); j3_ctx.shadowBlur = 0; } }); }
             if (j3_gameState.enemies) {
                 j3_gameState.enemies.forEach(e => {
-                    if (e.type === 'batalha' || e.type === 'formacao') { j3_drawTriangle(e.x, e.y, e.type === 'batalha' ? '#ff0000' : '#ffffff', true); } 
+                    if (e.type === 'batalha' || e.type === 'formacao') { j3_drawTriangle(e.x, e.y, e.type === 'batalha' ? '#ff0000' : '#ffffff', true); }
                     else if (e.type === 'tanque') { j3_drawTank(e.x, e.y); } else if (e.type === 'mae') { j3_drawMotherShip(e.x, e.y); }
                 });
             }
@@ -527,7 +829,7 @@
         // Estrelas de fundo
         function createStars() {
             const stars = document.getElementById('stars');
-            for(let i=0; i<100; i++) {
+            for (let i = 0; i < 100; i++) {
                 let star = document.createElement('div');
                 star.style.position = 'absolute'; star.style.width = Math.random() * 3 + 'px'; star.style.height = star.style.width;
                 star.style.background = 'rgba(255,255,255,' + Math.random() + ')'; star.style.left = Math.random() * 100 + '%';
@@ -537,4 +839,5 @@
         createStars();
     </script>
 </body>
+
 </html>
