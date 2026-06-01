@@ -14,6 +14,11 @@ Atualizamos o seu `docker-compose.yml` para englobar toda a infraestrutura (Banc
    ```bash
    sudo docker compose up -d --build
    ```
+
+   Use isso para derrubar os contêineres.
+   ```bash
+   sudo docker compose down
+   ```
 3. O Docker fará o download das dependências e subirá os seguintes serviços:
    - **Postgres** (Porta 5432)
    - **Redis / Zookeeper / Kafka** (Em background)
