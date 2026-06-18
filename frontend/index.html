@@ -7,6 +7,8 @@
     <title>Spaceship Multiplayer Game</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <!-- Configuração centralizada de IP/portas (ver frontend/config.js) -->
+    <script src="config.js"></script>
     <style>
         :root {
             --primary: #8a2be2;
@@ -149,6 +151,42 @@
             font-size: 14px;
             margin-bottom: 15px;
             min-height: 20px;
+        }
+
+        /* Diferenciação visual: modo Registro (verde) x modo Login (roxo) */
+        #auth-container.register-mode {
+            border-color: rgba(46, 204, 113, 0.55);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 30px rgba(46, 204, 113, 0.15);
+        }
+
+        #auth-container.register-mode h1 {
+            background: -webkit-linear-gradient(45deg, #a8ffce, #27ae60);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        #auth-container.register-mode .btn {
+            background: linear-gradient(135deg, #2ecc71 0%, #1e8449 100%);
+        }
+
+        .mode-badge {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 4px 12px;
+            border-radius: 999px;
+            margin-bottom: 12px;
+            background: rgba(138, 43, 226, 0.2);
+            color: #e0aaff;
+            border: 1px solid rgba(138, 43, 226, 0.4);
+        }
+
+        #auth-container.register-mode .mode-badge {
+            background: rgba(46, 204, 113, 0.2);
+            color: #a8ffce;
+            border-color: rgba(46, 204, 113, 0.4);
         }
 
         /* VIEWS */
@@ -339,16 +377,21 @@
 
     <!-- TELA DE AUTENTICAÇÃO -->
     <div class="glass-panel" id="auth-container">
+        <span class="mode-badge" id="auth-badge">Login</span>
         <h1 id="auth-title">Entrar na Frota</h1>
-        <p style="color: #bbb; font-size: 14px; margin-bottom: 25px;">Conecte-se para acessar os jogos multiplayer.</p>
+        <p id="auth-subtitle" style="color: #bbb; font-size: 14px; margin-bottom: 25px;">Conecte-se para acessar os jogos multiplayer.</p>
         <div class="error-message" id="error-msg"></div>
         <div class="input-group">
             <label for="username">Piloto (Usuário)</label>
-            <input type="text" id="username" placeholder="Seu username" autocomplete="off" />
+            <input type="text" id="username" placeholder="Seu username (4 a 30 caracteres)" autocomplete="off" />
         </div>
         <div class="input-group">
             <label for="password">Senha</label>
-            <input type="password" id="password" placeholder="Sua senha secreta" />
+            <input type="password" id="password" placeholder="Sua senha secreta (4 a 30 caracteres)" />
+        </div>
+        <div class="input-group" id="confirm-group" style="display: none;">
+            <label for="confirm-password">Confirmar Senha</label>
+            <input type="password" id="confirm-password" placeholder="Digite a senha novamente" />
         </div>
         <button class="btn" id="btn-submit" onclick="handleAuth()">
             <span id="btn-text">Iniciar Sessão</span>
@@ -500,28 +543,72 @@
         // UI & AUTH
         // ==========================================
         let isLoginMode = true;
-        const HOST = window.location.hostname;
+        // Configuração centralizada de endpoints (frontend/config.js). Fallback para o host atual.
+        const CFG = window.APP_CONFIG || {};
+        const HOST = (CFG.HOST && CFG.HOST.length) ? CFG.HOST : window.location.hostname;
         const PROTOCOL = window.location.protocol;
-        const API_URL = `${PROTOCOL}//${HOST}:5000/api/auth`;
+        const AUTH_PORT = CFG.AUTH_PORT || 5000;
+        const GATEWAY_PORT = CFG.GATEWAY_PORT || 3000;
+        const API_URL = `${PROTOCOL}//${HOST}:${AUTH_PORT}/api/auth`;
         let socket;
+
+        // ==========================================
+        // ÁUDIO — efeito sonoro do disparo da nave pessoal
+        // ==========================================
+        let audioCtx = null;
+        function playShootSound() {
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const o = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                o.type = 'square';
+                o.frequency.setValueAtTime(820, audioCtx.currentTime);
+                o.frequency.exponentialRampToValueAtTime(180, audioCtx.currentTime + 0.12);
+                g.gain.setValueAtTime(0.12, audioCtx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.14);
+                o.connect(g); g.connect(audioCtx.destination);
+                o.start(); o.stop(audioCtx.currentTime + 0.15);
+            } catch (e) { /* áudio indisponível neste navegador */ }
+        }
+
+        // ==========================================
+        // GERENCIADOR CENTRAL DE TELAS
+        // Garante que apenas uma tela fique visível — evita a duplicação do lobby/menus.
+        // ==========================================
+        const SCREENS = ['auth-container', 'dashboard-container', 'game1-lobby', 'game-area', 'game2-lobby', 'game2-waiting', 'game2-area', 'game3-lobby', 'game3-waiting', 'game3-area'];
+        function showScreen(id) {
+            SCREENS.forEach(s => { const el = document.getElementById(s); if (el) el.style.display = 'none'; });
+            const target = document.getElementById(id);
+            if (target) target.style.display = 'block';
+        }
 
         function toggleAuthMode() {
             isLoginMode = !isLoginMode;
+            document.getElementById('auth-badge').innerText = isLoginMode ? 'Login' : 'Registro';
             document.getElementById('auth-title').innerText = isLoginMode ? 'Entrar na Frota' : 'Alistar-se na Frota';
+            document.getElementById('auth-subtitle').innerText = isLoginMode ? 'Conecte-se para acessar os jogos multiplayer.' : 'Crie sua conta de piloto. Escolha uma senha e confirme-a abaixo.';
             document.getElementById('btn-text').innerText = isLoginMode ? 'Iniciar Sessão' : 'Criar Conta';
             document.getElementById('toggle-auth').innerText = isLoginMode ? 'Não possui conta? Registre-se aqui.' : 'Já possui conta? Entre aqui.';
+            document.getElementById('confirm-group').style.display = isLoginMode ? 'none' : 'block';
+            document.getElementById('auth-container').classList.toggle('register-mode', !isLoginMode);
+            document.getElementById('confirm-password').value = '';
             document.getElementById('error-msg').innerText = '';
         }
 
         async function handleAuth() {
             const user = document.getElementById('username').value;
             const pass = document.getElementById('password').value;
+            const confirm = document.getElementById('confirm-password').value;
             const errorMsg = document.getElementById('error-msg');
             const btnText = document.getElementById('btn-text');
             const loader = document.getElementById('btn-loader');
             if (!user || !pass) { errorMsg.innerText = "Preencha todos os campos."; return; }
             if (user.length < 4 || user.length > 30) { errorMsg.innerText = "O nome de usuário deve ter entre 4 e 30 caracteres."; return; }
             if (pass.length < 4 || pass.length > 30) { errorMsg.innerText = "A senha deve ter entre 4 e 30 caracteres."; return; }
+            if (!isLoginMode) {
+                if (!confirm) { errorMsg.innerText = "Confirme a senha para concluir o registro."; return; }
+                if (pass !== confirm) { errorMsg.innerText = "As senhas não coincidem."; return; }
+            }
             errorMsg.innerText = ''; btnText.style.display = 'none'; loader.style.display = 'inline-block'; document.getElementById('btn-submit').disabled = true;
 
             const endpoint = isLoginMode ? '/login' : '/register';
@@ -531,7 +618,7 @@
                     body: JSON.stringify({ username: user, password: pass })
                 });
                 let data; try { data = await response.json(); } catch (e) { data = await response.text(); }
-                if (!response.ok) throw new Error(data.message || data || "Erro de autenticação");
+                if (!response.ok) throw new Error((data && data.message) || data || "Erro de autenticação");
 
                 if (!isLoginMode) { alert("Conta criada com sucesso! Faça login agora."); toggleAuthMode(); }
                 else { localStorage.setItem('spaceship_token', data.token); localStorage.setItem('spaceship_user', user); showDashboard(); }
@@ -540,11 +627,7 @@
         }
 
         function showDashboard() {
-            document.getElementById('auth-container').style.display = 'none';
-            document.getElementById('game1-lobby').style.display = 'none'; document.getElementById('game-area').style.display = 'none';
-            document.getElementById('game2-lobby').style.display = 'none'; document.getElementById('game2-waiting').style.display = 'none'; document.getElementById('game2-area').style.display = 'none';
-            document.getElementById('game3-lobby').style.display = 'none'; document.getElementById('game3-waiting').style.display = 'none'; document.getElementById('game3-area').style.display = 'none';
-            document.getElementById('dashboard-container').style.display = 'block';
+            showScreen('dashboard-container');
             document.getElementById('display-user').innerText = localStorage.getItem('spaceship_user');
             if (!socket) connectSocket();
         }
@@ -557,7 +640,7 @@
         function connectSocket() {
             const token = localStorage.getItem('spaceship_token');
             const statusText = document.getElementById('socket-status');
-            socket = io(`${PROTOCOL}//${HOST}:3000`, { auth: { token: token } });
+            socket = io(`${PROTOCOL}//${HOST}:${GATEWAY_PORT}`, { auth: { token: token } });
 
             socket.on('connect', () => {
                 statusText.innerText = '✔️ Conectado ao Gateway Seguro.'; statusText.style.color = '#2ecc71';
@@ -581,7 +664,7 @@
             });
             socket.on('roomJoined', (room) => {
                 localState = { players: {}, lasers: [] }; ctx.clearRect(0, 0, canvas.width, canvas.height); inGame = true;
-                document.getElementById('game1-lobby').style.display = 'none'; document.getElementById('game-area').style.display = 'block';
+                showScreen('game-area');
                 myPlayerIsP1 = room.players[socket.id] ? room.players[socket.id].isP1 : true;
                 document.getElementById('roundNumber').innerText = room.round; document.getElementById('p1Score').innerText = room.p1Score; document.getElementById('p2Score').innerText = room.p2Score;
                 document.getElementById('overlay').innerText = "Aguardando Oponente...";
@@ -605,10 +688,7 @@
                 for (let id in localState.players) localState.players[id].targetX = localState.players[id].x;
                 setTimeout(() => {
                     document.getElementById('overlay').innerText = '';
-                    if (document.getElementById('game-area').style.display !== 'none') {
-                        document.getElementById('game-area').style.display = 'none';
-                        document.getElementById('game1-lobby').style.display = 'block';
-                    }
+                    if (document.getElementById('game-area').style.display !== 'none') showScreen('game1-lobby');
                     localState = { players: {}, lasers: [] }; ctx.clearRect(0, 0, canvas.width, canvas.height);
                 }, 3000);
             });
@@ -625,10 +705,10 @@
             });
             socket.on('atualizarLobby', (jogadores) => {
                 document.getElementById('j2-qtd-jogadores').innerText = `${jogadores.length}/4`;
-                document.getElementById('game2-lobby').style.display = 'none'; document.getElementById('game2-waiting').style.display = 'block';
+                showScreen('game2-waiting');
             });
             socket.on('partidaIniciada', () => {
-                document.getElementById('game2-waiting').style.display = 'none'; document.getElementById('game2-area').style.display = 'block';
+                showScreen('game2-area');
                 j2_inGame = true; j2_keys = { left: false, right: false };
             });
             socket.on('estadoDoJogo', (estado) => { j2_estadoDoJogo = estado; });
@@ -637,10 +717,7 @@
                 overlay.innerHTML = `Impacto Detectado!<br><span style="font-size:2rem;color:#fff;">Asteroides Destruídos: ${pontos}</span>`;
                 setTimeout(() => {
                     overlay.innerHTML = '';
-                    if (document.getElementById('game2-area').style.display !== 'none') {
-                        document.getElementById('game2-area').style.display = 'none';
-                        document.getElementById('game2-lobby').style.display = 'block';
-                    }
+                    if (document.getElementById('game2-area').style.display !== 'none') showScreen('game2-lobby');
                 }, 4000);
             });
             socket.on('jogadorDesconectado', () => {
@@ -648,10 +725,7 @@
                 overlay.innerHTML = `Partida Abortada<br><span style="font-size:1.5rem;color:#aaa;">Alguém caiu.</span>`;
                 setTimeout(() => {
                     overlay.innerHTML = '';
-                    if (document.getElementById('game2-area').style.display !== 'none') {
-                        document.getElementById('game2-area').style.display = 'none';
-                        document.getElementById('game2-lobby').style.display = 'block';
-                    }
+                    if (document.getElementById('game2-area').style.display !== 'none') showScreen('game2-lobby');
                 }, 4000);
             });
             socket.on('erroSala', (msg) => { alert(msg); });
@@ -670,25 +744,32 @@
             socket.on('j3_roomJoined', (data) => {
                 document.getElementById('j3-nome-sala').innerText = data.roomName;
                 document.getElementById('j3-qtd-jogadores').innerText = `${data.playerCount}/4`;
-                document.getElementById('game3-lobby').style.display = 'none'; document.getElementById('game3-waiting').style.display = 'block';
+                showScreen('game3-waiting');
             });
             socket.on('j3_errorMsg', (msg) => alert(msg));
             socket.on('j3_gameStarted', () => {
-                document.getElementById('game3-waiting').style.display = 'none'; document.getElementById('game3-area').style.display = 'block';
-                j3_inGame = true; j3_keys = { left: false, right: false };
+                showScreen('game3-area');
+                j3_inGame = true; j3_keys = { left: false, right: false }; j3_warningShown = false;
             });
-            socket.on('j3_gameState', (state) => { j3_gameState = state; });
+            socket.on('j3_gameState', (state) => {
+                j3_gameState = state;
+                // Limpa o alerta do chefe quando a fase deixa de ser 'warning'
+                if (state.phase !== 'warning' && j3_warningShown) { document.getElementById('j3-overlay').innerHTML = ''; j3_warningShown = false; }
+            });
+            socket.on('j3_bossWarning', (data) => {
+                j3_warningShown = true;
+                const overlay = document.getElementById('j3-overlay');
+                overlay.innerHTML = `⚠️ A NAVE MÃE SE APROXIMA<br><span style="font-size:3.5rem;color:#fff;">${data.seconds}</span>`;
+            });
             socket.on('j3_gameOver', (data) => {
                 j3_inGame = false; const overlay = document.getElementById('j3-overlay');
-                if (data.won) { overlay.innerHTML = `Vitória!<br><span style="font-size:2rem;color:#fff;">A Nave Mãe foi destruída!</span>`; }
-                else { overlay.innerHTML = `Derrota!<br><span style="font-size:2rem;color:#fff;">Sua frota caiu.</span>`; }
+                const pontuacao = `<br><span style="font-size:1.6rem;color:#e0aaff;">Pontuação: ${data.score || 0}</span>`;
+                if (data.won) { overlay.innerHTML = `Vitória!<br><span style="font-size:2rem;color:#fff;">A Nave Mãe foi destruída!</span>${pontuacao}`; }
+                else { overlay.innerHTML = `Derrota!<br><span style="font-size:2rem;color:#fff;">Sua frota caiu.</span>${pontuacao}`; }
                 setTimeout(() => {
                     overlay.innerHTML = '';
-                    if (document.getElementById('game3-area').style.display !== 'none') {
-                        document.getElementById('game3-area').style.display = 'none';
-                        document.getElementById('game3-lobby').style.display = 'block';
-                    }
-                    j3_ctx.clearRect(0, 0, 800, 600);
+                    if (document.getElementById('game3-area').style.display !== 'none') showScreen('game3-lobby');
+                    j3_ctx.clearRect(0, 0, 800, 600); j3_warningShown = false;
                 }, 4000);
             });
         }
@@ -696,44 +777,81 @@
         // ==========================================
         // GAME 1 LOGIC
         // ==========================================
-        function openGame1Lobby() { document.getElementById('dashboard-container').style.display = 'none'; document.getElementById('game1-lobby').style.display = 'block'; socket.emit('join_game_lobby', { gameId: 'jogo1' }); }
+        function openGame1Lobby() { showScreen('game1-lobby'); socket.emit('join_game_lobby', { gameId: 'jogo1' }); }
         function createRoom() { socket.emit('createRoom'); }
         function joinRoom(id) { socket.emit('joinRoom', id); }
-        function leaveRoom() { socket.emit('leaveRoom'); document.getElementById('game-area').style.display = 'none'; document.getElementById('game1-lobby').style.display = 'block'; inGame = false; }
+        function leaveRoom() { socket.emit('leaveRoom'); showScreen('game1-lobby'); inGame = false; }
         const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d'); let inGame = false; let myPlayerIsP1 = true; let localState = { players: {}, lasers: [] };
         function lerp(start, end, factor) { return start + (end - start) * factor; }
         function getDrawY(serverY) { return myPlayerIsP1 ? serverY : canvas.height - serverY; }
+        // Nave com fuselagem detalhada (asas recortadas + cabine) e brilho na cor do jogador
         function drawTriangle(x, y, color, isMe) {
-            ctx.beginPath(); ctx.fillStyle = color;
-            if (isMe) { ctx.moveTo(x, y - 20); ctx.lineTo(x - 20, y + 15); ctx.lineTo(x + 20, y + 15); } else { ctx.moveTo(x, y + 20); ctx.lineTo(x - 20, y - 15); ctx.lineTo(x + 20, y - 15); }
-            ctx.fill(); ctx.closePath(); ctx.shadowBlur = 15; ctx.shadowColor = color; ctx.fill(); ctx.shadowBlur = 0;
+            ctx.save();
+            ctx.fillStyle = color; ctx.shadowBlur = 15; ctx.shadowColor = color;
+            ctx.beginPath();
+            if (isMe) {
+                ctx.moveTo(x, y - 22); ctx.lineTo(x - 18, y + 16); ctx.lineTo(x - 6, y + 8); ctx.lineTo(x + 6, y + 8); ctx.lineTo(x + 18, y + 16);
+            } else {
+                ctx.moveTo(x, y + 22); ctx.lineTo(x - 18, y - 16); ctx.lineTo(x - 6, y - 8); ctx.lineTo(x + 6, y - 8); ctx.lineTo(x + 18, y - 16);
+            }
+            ctx.closePath(); ctx.fill();
+            ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.beginPath(); ctx.arc(x, isMe ? y - 4 : y + 4, 3.5, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
         }
         function gameLoop() {
             if (!inGame) { requestAnimationFrame(gameLoop); return; }
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             for (const id in localState.players) { const p = localState.players[id]; if (p.targetX !== undefined) p.x = lerp(p.x, p.targetX, 0.3); drawTriangle(p.x, getDrawY(p.y), p.color, (id === socket.id)); }
-            for (const laser of localState.lasers) { ctx.fillStyle = '#f1c40f'; ctx.shadowBlur = 10; ctx.shadowColor = '#f1c40f'; ctx.fillRect(laser.x - 2, getDrawY(laser.y) - 10, 4, 20); ctx.shadowBlur = 0; }
+            // Projétil herda a cor da nave que disparou (padronizado entre os jogos)
+            for (const laser of localState.lasers) {
+                ctx.save(); const cor = laser.color || '#fff';
+                ctx.fillStyle = cor; ctx.shadowBlur = 12; ctx.shadowColor = cor;
+                ctx.beginPath(); ctx.arc(laser.x, getDrawY(laser.y), (laser.radius || 4), 0, Math.PI * 2); ctx.fill();
+                ctx.restore();
+            }
             requestAnimationFrame(gameLoop);
         }
         requestAnimationFrame(gameLoop);
         const keys = { left: false, right: false };
+        function g1_sendDir() {
+            let dir = 'stop';
+            if (keys.left && !keys.right) dir = 'left'; else if (keys.right && !keys.left) dir = 'right';
+            socket.emit('playerMovement', { dir });
+        }
         window.addEventListener('keydown', (e) => {
-            if (!inGame) return; if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true; if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true; if (e.key === ' ' || e.key === 'Enter') socket.emit('shoot');
+            if (!inGame) return;
+            if (e.key === 'ArrowLeft' || e.key === 'a') { if (!keys.left) { keys.left = true; g1_sendDir(); } }
+            if (e.key === 'ArrowRight' || e.key === 'd') { if (!keys.right) { keys.right = true; g1_sendDir(); } }
+            if (e.key === ' ' || e.key === 'Enter') { socket.emit('shoot'); playShootSound(); }
         });
-        window.addEventListener('keyup', (e) => { if (!inGame) return; if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false; if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false; });
-        setInterval(() => { if (!inGame || document.getElementById('overlay').innerText !== '') return; let dx = 0; if (keys.left) dx = -10; if (keys.right) dx = 10; if (dx !== 0) socket.emit('playerMovement', { dx }); }, 1000 / 60);
+        window.addEventListener('keyup', (e) => {
+            if (!inGame) return;
+            if (e.key === 'ArrowLeft' || e.key === 'a') { keys.left = false; g1_sendDir(); }
+            if (e.key === 'ArrowRight' || e.key === 'd') { keys.right = false; g1_sendDir(); }
+        });
 
         // ==========================================
         // GAME 2 LOGIC
         // ==========================================
-        function openGame2Lobby() { document.getElementById('dashboard-container').style.display = 'none'; document.getElementById('game2-lobby').style.display = 'block'; socket.emit('join_game_lobby', { gameId: 'jogo2' }); }
+        function openGame2Lobby() { showScreen('game2-lobby'); socket.emit('join_game_lobby', { gameId: 'jogo2' }); }
         function j2_criarSala() { const sala = document.getElementById('j2-input-sala').value; if (sala) { socket.emit('criarSala', sala); document.getElementById('j2-nome-sala').innerText = sala; } }
         function j2_entrarSala(sala) { socket.emit('entrarSala', sala); document.getElementById('j2-nome-sala').innerText = sala; }
         function j2_iniciarPartida() { socket.emit('iniciarPartida'); }
-        function j2_sairDaSala() { socket.emit('sairDaSala'); document.getElementById('game2-waiting').style.display = 'none'; document.getElementById('game2-lobby').style.display = 'block'; }
-        function j2_abandonarPartida() { socket.emit('sairDaSala'); j2_inGame = false; j2_ctx.clearRect(0, 0, j2_canvas.width, j2_canvas.height); document.getElementById('game2-area').style.display = 'none'; document.getElementById('game2-lobby').style.display = 'block'; }
+        function j2_sairDaSala() { socket.emit('sairDaSala'); showScreen('game2-lobby'); }
+        function j2_abandonarPartida() { socket.emit('sairDaSala'); j2_inGame = false; j2_ctx.clearRect(0, 0, j2_canvas.width, j2_canvas.height); showScreen('game2-lobby'); }
         const j2_canvas = document.getElementById('j2-gameCanvas'); const j2_ctx = j2_canvas.getContext('2d'); let j2_inGame = false; let j2_estadoDoJogo = null;
-        function j2_desenharNave(x, y, cor) { j2_ctx.fillStyle = cor; j2_ctx.beginPath(); j2_ctx.moveTo(x, y - 25); j2_ctx.lineTo(x + 16, y + 16); j2_ctx.lineTo(x - 16, y + 16); j2_ctx.closePath(); j2_ctx.shadowBlur = 15; j2_ctx.shadowColor = cor; j2_ctx.fill(); j2_ctx.shadowBlur = 0; }
+        // Nave com fuselagem detalhada (asas recortadas + cabine), apontando para cima
+        function j2_desenharNave(x, y, cor) {
+            j2_ctx.save();
+            j2_ctx.fillStyle = cor; j2_ctx.shadowBlur = 15; j2_ctx.shadowColor = cor;
+            j2_ctx.beginPath();
+            j2_ctx.moveTo(x, y - 26); j2_ctx.lineTo(x - 16, y + 16); j2_ctx.lineTo(x - 5, y + 8); j2_ctx.lineTo(x + 5, y + 8); j2_ctx.lineTo(x + 16, y + 16);
+            j2_ctx.closePath(); j2_ctx.fill();
+            j2_ctx.shadowBlur = 0; j2_ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            j2_ctx.beginPath(); j2_ctx.arc(x, y - 6, 3.5, 0, Math.PI * 2); j2_ctx.fill();
+            j2_ctx.restore();
+        }
         function j2_desenharAsteroide(x, y, raio) {
             j2_ctx.fillStyle = '#888'; j2_ctx.beginPath();
             for (let i = 0; i < 6; i++) {
@@ -747,9 +865,15 @@
             if (!j2_inGame || !j2_estadoDoJogo) { requestAnimationFrame(j2_gameLoop); return; }
             j2_ctx.clearRect(0, 0, j2_canvas.width, j2_canvas.height);
             j2_estadoDoJogo.jogadores.forEach(j => j2_desenharNave(j.x, j.y, j.cor));
-            j2_ctx.fillStyle = '#FFF'; j2_estadoDoJogo.projeteis.forEach(p => { j2_ctx.beginPath(); j2_ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); j2_ctx.fill(); });
+            // Projétil herda a cor da nave que disparou (padronizado entre os jogos)
+            j2_estadoDoJogo.projeteis.forEach(p => {
+                j2_ctx.save(); const cor = p.cor || '#fff';
+                j2_ctx.fillStyle = cor; j2_ctx.shadowBlur = 10; j2_ctx.shadowColor = cor;
+                j2_ctx.beginPath(); j2_ctx.arc(p.x, p.y, (p.raio || 4), 0, Math.PI * 2); j2_ctx.fill();
+                j2_ctx.restore();
+            });
             j2_estadoDoJogo.asteroides.forEach(a => j2_desenharAsteroide(a.x, a.y, a.raio));
-            j2_ctx.fillStyle = '#FFF'; j2_ctx.font = 'bold 20px Inter'; j2_ctx.fillText(`Asteroides: ${j2_estadoDoJogo.pontos}`, 10, 30);
+            j2_ctx.fillStyle = '#FFF'; j2_ctx.font = 'bold 20px Inter'; j2_ctx.fillText(`Asteroides Destruídos: ${j2_estadoDoJogo.pontos}`, 10, 30);
             requestAnimationFrame(j2_gameLoop);
         }
         requestAnimationFrame(j2_gameLoop);
@@ -758,7 +882,7 @@
             if (!j2_inGame) return;
             if (e.key === 'ArrowLeft' || e.key === 'a') { if (!j2_keys.left) { j2_keys.left = true; socket.emit('acao', { tipo: 'mover', direcao: 'esquerda' }); } }
             if (e.key === 'ArrowRight' || e.key === 'd') { if (!j2_keys.right) { j2_keys.right = true; socket.emit('acao', { tipo: 'mover', direcao: 'direita' }); } }
-            if (e.key === ' ') { socket.emit('acao', { tipo: 'atirar' }); }
+            if (e.key === ' ') { socket.emit('acao', { tipo: 'atirar' }); playShootSound(); }
         });
         window.addEventListener('keyup', (e) => {
             if (!j2_inGame) return;
@@ -769,61 +893,83 @@
         // ==========================================
         // GAME 3 LOGIC
         // ==========================================
-        function openGame3Lobby() { document.getElementById('dashboard-container').style.display = 'none'; document.getElementById('game3-lobby').style.display = 'block'; socket.emit('join_game_lobby', { gameId: 'jogo3' }); }
+        function openGame3Lobby() { showScreen('game3-lobby'); socket.emit('join_game_lobby', { gameId: 'jogo3' }); }
         function j3_createRoom() { const room = document.getElementById('j3-input-sala').value; if (room) socket.emit('j3_createRoom', room); }
         function j3_joinRoom(room) { socket.emit('j3_joinRoom', room); }
         function j3_startGame() { socket.emit('j3_startGame'); }
-        function j3_leaveRoom() { socket.emit('j3_leaveRoom'); j3_inGame = false; document.getElementById('game3-area').style.display = 'none'; document.getElementById('game3-waiting').style.display = 'none'; document.getElementById('game3-lobby').style.display = 'block'; }
+        function j3_leaveRoom() { socket.emit('j3_leaveRoom'); j3_inGame = false; showScreen('game3-lobby'); }
 
-        const j3_canvas = document.getElementById('j3-gameCanvas'); const j3_ctx = j3_canvas.getContext('2d'); let j3_inGame = false; let j3_gameState = null;
+        const j3_canvas = document.getElementById('j3-gameCanvas'); const j3_ctx = j3_canvas.getContext('2d'); let j3_inGame = false; let j3_gameState = null; let j3_warningShown = false;
+        // Nave do jogador com fuselagem detalhada (asas recortadas + cabine); inimigos triangulares simples
         function j3_drawTriangle(x, y, color, isEnemy = false) {
-            j3_ctx.fillStyle = color; j3_ctx.beginPath();
-            if (isEnemy) { j3_ctx.moveTo(x, y + 15); j3_ctx.lineTo(x - 15, y - 15); j3_ctx.lineTo(x + 15, y - 15); }
-            else { j3_ctx.moveTo(x, y - 15); j3_ctx.lineTo(x - 15, y + 15); j3_ctx.lineTo(x + 15, y + 15); }
-            j3_ctx.fill();
+            j3_ctx.save();
+            j3_ctx.fillStyle = color;
+            if (isEnemy) {
+                j3_ctx.beginPath(); j3_ctx.moveTo(x, y + 15); j3_ctx.lineTo(x - 15, y - 15); j3_ctx.lineTo(x + 15, y - 15); j3_ctx.closePath(); j3_ctx.fill();
+            } else {
+                j3_ctx.shadowBlur = 15; j3_ctx.shadowColor = color;
+                j3_ctx.beginPath(); j3_ctx.moveTo(x, y - 18); j3_ctx.lineTo(x - 16, y + 14); j3_ctx.lineTo(x - 5, y + 7); j3_ctx.lineTo(x + 5, y + 7); j3_ctx.lineTo(x + 16, y + 14); j3_ctx.closePath(); j3_ctx.fill();
+                j3_ctx.shadowBlur = 0; j3_ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                j3_ctx.beginPath(); j3_ctx.arc(x, y - 2, 3, 0, Math.PI * 2); j3_ctx.fill();
+            }
+            j3_ctx.restore();
         }
-        function j3_drawTank(x, y) { j3_ctx.fillStyle = '#ffaa00'; j3_ctx.fillRect(x - 15, y - 15, 30, 30); }
-        function j3_drawMotherShip(x, y) {
-            j3_ctx.fillStyle = '#ff0000'; j3_ctx.beginPath();
-            for (let i = 0; i < 8; i++) {
-                const angle = (i * 45) * Math.PI / 180; const vx = x + 50 * Math.cos(angle); const vy = y + 50 * Math.sin(angle);
+        function j3_drawTank(x, y) { j3_ctx.save(); j3_ctx.fillStyle = '#CC44FF'; j3_ctx.shadowBlur = 12; j3_ctx.shadowColor = '#CC44FF'; j3_ctx.fillRect(x - 18, y - 18, 36, 36); j3_ctx.restore(); }
+        function j3_drawMotherShip(x, y, hp, maxHp) {
+            j3_ctx.save();
+            j3_ctx.fillStyle = '#990000'; j3_ctx.shadowBlur = 25; j3_ctx.shadowColor = '#ff0000';
+            j3_ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle = (i * 60 - 30) * Math.PI / 180; const vx = x + 50 * Math.cos(angle); const vy = y + 50 * Math.sin(angle);
                 if (i === 0) j3_ctx.moveTo(vx, vy); else j3_ctx.lineTo(vx, vy);
             }
             j3_ctx.closePath(); j3_ctx.fill();
+            j3_ctx.shadowBlur = 0;
+            if (maxHp) {
+                const w = 120, h = 8, bx = x - w / 2, by = y - 70;
+                j3_ctx.fillStyle = '#333'; j3_ctx.fillRect(bx, by, w, h);
+                j3_ctx.fillStyle = '#ff3333'; j3_ctx.fillRect(bx, by, w * Math.max(0, hp / maxHp), h);
+            }
+            j3_ctx.restore();
         }
-        function j3_drawBullet(x, y, radius, color) { j3_ctx.fillStyle = color; j3_ctx.beginPath(); j3_ctx.arc(x, y, radius, 0, Math.PI * 2); j3_ctx.fill(); }
+        function j3_drawBullet(x, y, radius, color) { j3_ctx.save(); j3_ctx.fillStyle = color; j3_ctx.shadowBlur = 8; j3_ctx.shadowColor = color; j3_ctx.beginPath(); j3_ctx.arc(x, y, radius, 0, Math.PI * 2); j3_ctx.fill(); j3_ctx.restore(); }
 
         function j3_gameLoop() {
-            if (j3_keys.left) socket.emit('j3_move', 'left');
-            if (j3_keys.right) socket.emit('j3_move', 'right');
-
             if (!j3_inGame || !j3_gameState) { requestAnimationFrame(j3_gameLoop); return; }
             j3_ctx.clearRect(0, 0, j3_canvas.width, j3_canvas.height);
 
-            if (j3_gameState.players) { Object.values(j3_gameState.players).forEach(p => { if (p.isAlive) { j3_drawTriangle(p.x, p.y, p.color, false); j3_ctx.shadowBlur = 15; j3_ctx.shadowColor = p.color; j3_ctx.fill(); j3_ctx.shadowBlur = 0; } }); }
-            if (j3_gameState.enemies) {
-                j3_gameState.enemies.forEach(e => {
-                    if (e.type === 'batalha' || e.type === 'formacao') { j3_drawTriangle(e.x, e.y, e.type === 'batalha' ? '#ff0000' : '#ffffff', true); }
-                    else if (e.type === 'tanque') { j3_drawTank(e.x, e.y); } else if (e.type === 'mae') { j3_drawMotherShip(e.x, e.y); }
-                });
-            }
-            if (j3_gameState.playerBullets) { j3_gameState.playerBullets.forEach(b => j3_drawBullet(b.x, b.y, b.radius, '#ffff00')); }
-            if (j3_gameState.enemyBullets) { j3_gameState.enemyBullets.forEach(b => j3_drawBullet(b.x, b.y, b.radius, '#ff5500')); }
+            if (j3_gameState.players) Object.values(j3_gameState.players).forEach(p => { if (p.isAlive) j3_drawTriangle(p.x, p.y, p.color, false); });
+            if (j3_gameState.enemies) j3_gameState.enemies.forEach(e => {
+                if (e.type === 'batalha' || e.type === 'formacao') j3_drawTriangle(e.x, e.y, e.type === 'batalha' ? '#ff3333' : '#ffffff', true);
+                else if (e.type === 'tanque') j3_drawTank(e.x, e.y);
+                else if (e.type === 'mae') j3_drawMotherShip(e.x, e.y, e.hp, e.maxHp);
+            });
+            // Projétil do jogador herda a cor da nave; projétil inimigo é laranja padrão
+            if (j3_gameState.playerBullets) j3_gameState.playerBullets.forEach(b => j3_drawBullet(b.x, b.y, b.radius, b.color || '#ffff00'));
+            if (j3_gameState.enemyBullets) j3_gameState.enemyBullets.forEach(b => j3_drawBullet(b.x, b.y, b.radius, '#ff5500'));
+            // HUD de pontuação por destruição
+            j3_ctx.fillStyle = '#FFF'; j3_ctx.font = 'bold 20px Inter'; j3_ctx.fillText(`Pontos: ${j3_gameState.score || 0}`, 10, 30);
             requestAnimationFrame(j3_gameLoop);
         }
         requestAnimationFrame(j3_gameLoop);
 
         let j3_keys = { left: false, right: false };
+        // Envia a direção apenas quando muda (não a cada frame) — velocidade independente do FPS do cliente
+        function j3_sendDir() {
+            let dir = 'stop';
+            if (j3_keys.left && !j3_keys.right) dir = 'left'; else if (j3_keys.right && !j3_keys.left) dir = 'right';
+            socket.emit('j3_move', dir);
+        }
         window.addEventListener('keydown', (e) => {
             if (!j3_inGame) return;
-            if (e.key === 'ArrowLeft' || e.key === 'a') j3_keys.left = true;
-            if (e.key === 'ArrowRight' || e.key === 'd') j3_keys.right = true;
-            if (e.key === ' ' || e.key === 'ArrowUp') socket.emit('j3_shoot');
+            if (e.key === 'ArrowLeft' || e.key === 'a') { if (!j3_keys.left) { j3_keys.left = true; j3_sendDir(); } }
+            if (e.key === 'ArrowRight' || e.key === 'd') { if (!j3_keys.right) { j3_keys.right = true; j3_sendDir(); } }
+            if (e.key === ' ' || e.key === 'ArrowUp') { socket.emit('j3_shoot'); playShootSound(); }
         });
         window.addEventListener('keyup', (e) => {
             if (!j3_inGame) return;
-            if (e.key === 'ArrowLeft' || e.key === 'a') j3_keys.left = false;
-            if (e.key === 'ArrowRight' || e.key === 'd') j3_keys.right = false;
+            if (e.key === 'ArrowLeft' || e.key === 'a') { j3_keys.left = false; j3_sendDir(); }
+            if (e.key === 'ArrowRight' || e.key === 'd') { j3_keys.right = false; j3_sendDir(); }
         });
 
         // Estrelas de fundo

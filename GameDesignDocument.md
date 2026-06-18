@@ -1,6 +1,6 @@
 # CosmoDock
 
-_Game Design Document — v1.0_
+_Game Design Document — v1.1 (atualizado pós-QA)_
 
 ---
 
@@ -170,6 +170,7 @@ Desenvolver um jogo multiplayer web simples e funcional que sirva como demonstra
 - Asteroides descem verticalmente em direção às naves dos jogadores.
 - Um asteroide que toca uma nave mata o jogador instantaneamente.
 - Asteroides podem ser destruídos com projéteis.
+- **Pontuação ativa por destruição:** cada asteroide destruído vale **1 ponto**, exibido em tempo real na tela. O objetivo é destruir o máximo possível, não apenas sobreviver.
 - Não há respawn — ao morrer o jogador é removido da partida.
 - A partida continua enquanto **ao menos um jogador estiver vivo**.
 - A dificuldade aumenta progressivamente com o tempo (velocidade e frequência dos asteroides).
@@ -187,8 +188,9 @@ Desenvolver um jogo multiplayer web simples e funcional que sirva como demonstra
 **Dinâmica:**
 - Naves inimigas descem em ondas a partir do topo da tela.
 - Os jogadores compartilham o objetivo e podem se posicionar livremente.
+- **Pontuação ativa por destruição:** Caçador = **10 pts**, Destruidor = **50 pts**, Leviatã = **500 pts**. A pontuação é exibida em tempo real e no resultado final.
 - A partida continua enquanto **ao menos um jogador estiver vivo**.
-- Após um determinado tempo / número de ondas, o **boss** aparece.
+- Após um determinado tempo / número de ondas, o **boss** aparece (ver Transição / Entrada do Chefe).
 - Derrotado o boss, a partida encerra com **vitória de todos os sobreviventes**.
 
 **Condição de Vitória:** Derrotar o boss final.
@@ -222,11 +224,20 @@ Desenvolver um jogo multiplayer web simples e funcional que sirva como demonstra
 
 | Atributo | Valor |
 |---|---|
-| Forma | Hexágono |
-| HP | Alto (valor a ser balanceado por testes) |
-| Padrão de Tiro | A definir — projéteis em múltiplas direções |
-| Aparição | Após tempo/ondas predefinidos |
-| Efeito de Vitória | Derrota o Leviatã encerra o jogo com vitória dos sobreviventes |
+| Forma | Hexágono (com barra de HP exibida acima) |
+| HP | 100 (balanceável) |
+| Padrão de Tiro | Projéteis descendentes com dispersão horizontal aleatória |
+| Aparição | Após o tempo de combate (`BOSS_TRIGGER_TIME`) **e** a eliminação da última nave inimiga comum, precedida de alerta com congelamento |
+| Efeito de Vitória | Derrotar o Leviatã encerra o jogo com vitória dos sobreviventes (+500 pontos) |
+
+#### Transição / Entrada do Chefe (anti-spawn repentino)
+
+Para evitar que o chefe surja repentinamente, a entrada segue um fluxo de fases controlado pelo servidor:
+
+1. **Combate:** ondas de inimigos comuns (Caçador e Destruidor) descem normalmente.
+2. **Alerta (freeze):** quando o tempo de combate é atingido e o último inimigo comum é eliminado, o gameplay é **congelado por ~3 segundos** e a tela exibe o aviso **"⚠️ A NAVE MÃE SE APROXIMA"** com um contador regressivo. Os projéteis inimigos são limpos para que ninguém morra durante o congelamento.
+3. **Entrada:** o chefe surge no topo e **desce em animação** até a posição de combate antes de começar a atacar.
+4. **Batalha:** o Leviatã passa a se mover lateralmente e a disparar.
 
 ---
 
@@ -285,16 +296,18 @@ Desenvolver um jogo multiplayer web simples e funcional que sirva como demonstra
 | Elemento | Cor |
 |---|---|
 | Fundo | Preto (#0A0A0F) |
-| Nave do Jogador 1 | Branco / Ciano (#00FFFF) |
-| Nave do Jogador 2 | Verde (#00FF88) |
-| Nave do Jogador 3 | Amarelo (#FFE600) |
-| Nave do Jogador 4 | Laranja (#FF6600) |
+| Nave do Jogador 1 | Ciano (#00FFFF) |
+| Nave do Jogador 2 | Magenta (#FF00FF) |
+| Nave do Jogador 3 | Verde (#00FF88) |
+| Nave do Jogador 4 | Amarelo (#FFE600) |
 | Inimigo Caçador | Vermelho (#FF3333) |
 | Inimigo Destruidor | Roxo (#CC44FF) |
 | Boss Leviatã | Vermelho escuro pulsante (#990000) |
-| Projéteis do Jogador | Branco (#FFFFFF) |
-| Projéteis Inimigos | Laranja (#FF8800) |
+| Projéteis do Jogador | **Mesma cor da nave que disparou** |
+| Projéteis Inimigos | Laranja (#FF5500) |
 | Asteroides | Cinza (#888888) |
+
+> **Vínculo de cores (Nave × Tiro):** cada jogador recebe uma cor única da paleta acima (`PLAYER_COLORS`), atribuída na ordem de entrada na sala. O projétil disparado **herda obrigatoriamente a cor da nave** que o disparou, em todos os três minigames — facilitando a leitura de quem atirou cada tiro.
 
 ### Cenários por Minigame
 
@@ -331,11 +344,11 @@ Desenvolver um jogo multiplayer web simples e funcional que sirva como demonstra
 - Fonte monoespaçada para HUD (ex.: `Courier New` ou `monospace`).
 - Telas de menu em HTML/CSS simples.
 
-### Áudio (Opcional / Fora do Escopo Principal)
+### Áudio
 
-- Efeito de tiro.
-- Efeito de explosão.
-- Música ambiente por minigame.
+- **Efeito de tiro (implementado):** feedback sonoro disparado **apenas quando a nave pessoal do jogador atira**, gerado via Web Audio API (sem arquivos externos). Aplica-se aos três minigames.
+- Efeito de explosão. *(planejado)*
+- Música ambiente por minigame. *(planejado)*
 
 ---
 
@@ -367,3 +380,32 @@ O CosmoDock adota uma arquitetura de microsserviços orientada a eventos (EDA) c
 - O Kafka retém eventos em disco: mesmo que o Score Service esteja temporariamente indisponível, nenhum resultado é perdido — o processamento é retomado ao restabelecer o serviço (**Consistência Eventual**).
 - PostgreSQL pode ser configurado em topologia Primary-Replica para separar escritas de leituras do leaderboard.
 - Os três Game Engines rodam como processos independentes: uma sobrecarga em uma partida não afeta as demais (**Particionamento Funcional**).
+
+---
+
+## Ajustes Pós-QA (v1.1)
+
+Mudanças aplicadas a partir do `relatorio_QA_v1.md`:
+
+### Padronização de naves e projéteis (todos os jogos)
+
+Todo o movimento é **autoritativo no servidor a 60 Hz**, eliminando a flutuação de velocidade que dependia do FPS/máquina do cliente (causa principal no Jogo 3, que antes enviava input a cada frame de animação).
+
+| Parâmetro | Valor padronizado |
+|---|---|
+| Velocidade base da nave | `SHIP_SPEED = 7` px/tick |
+| Velocidade do projétil | `PROJECTILE_SPEED = 14` px/tick |
+| Cadência de tiro (cooldown) | `SHOOT_COOLDOWN = 280` ms |
+| Raio do projétil | `PROJECTILE_RADIUS = 4` px |
+| Forma do projétil | Círculo (idêntico nos 3 jogos) |
+| Cor do projétil | Herdada da nave que disparou |
+
+### UI / UX
+
+- **Gerenciador central de telas** (`showScreen`) garante uma única tela visível por vez, eliminando a duplicação do lobby ao fim de partida / desconexão.
+- **Registro × Login diferenciados** visualmente (badge, subtítulo, tema de cor) e com **campo de confirmação de senha** obrigatório no cadastro.
+- Naves redesenhadas (fuselagem com asas recortadas, cabine e brilho na cor do jogador).
+
+### Configuração
+
+- Endpoints de IP/portas centralizados em `frontend/config.js` (cliente) e `.env.example` (backend).
