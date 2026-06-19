@@ -2,7 +2,7 @@
 
 **Projeto:** CosmoDock — Jogo Online de Naves (Minigames 1, 2 e 3)
 **Data:** 2026-06-19
-**Base:** [Checklist de Requisitos da Especificação](../Requisitos/Checklist%20de%20Requisitos%20da%20Especificação.md) · [relatorio_QA_v1.md](../v1/relatorio_QA_v1.md) · [QA_Status_v1.md](../v1/QA_Status_v1.md) · [Possiveis_problemas_v1.md](../v1/Possiveis_problemas_v1.md) · [GameDesignDocument.md](../GameDesignDocument.md) · [descrição da arquitetura.md](../Arquitetura/descrição%20da%20arquitetura.md) · [Arquitetura_code.md (mermaid)](../Arquitetura/Arquitetura_code.md)
+**Base:** [Checklist de Requisitos da Especificação](../Requisitos%20do%20trabalho/Checklist%20de%20Requisitos%20da%20Especificação.md) · [relatorio_QA_v1.md](../v1/relatorio_QA_v1.md) · [QA_Status_v1.md](../v1/QA_Status_v1.md) · [Possiveis_problemas_v1.md](../v1/Possiveis_problemas_v1.md) · [GameDesignDocument.md](../GameDesignDocument.md) · [descrição da arquitetura.md](../Arquitetura/descrição%20da%20arquitetura.md) · [Arquitetura_code.md (mermaid)](../Arquitetura/Arquitetura_code.md)
 **Responsáveis:** Thiago e Vinícius (Programação) · Moisés (GDD) · Ana Liz (QA)
 
 ---
@@ -31,21 +31,21 @@ O ciclo v1 fechou **todos os bugs de UI/UX e de consistência de gameplay** apon
 
 | # | Pendência | Origem | Prio | Esforço |
 |---|---|---|---|---|
-| 1 | Game Engines isolados — não existem (monólito no gateway) | QA §3 / Arquitetura | 🔴 | ● |
-| 2 | Migração WebSockets → **WebRTC** (canal de jogo) | QA §3 / decisão v2 | 🔴 | ● |
+| 1 | ✅ Game Engines isolados — agora 3 processos independentes (`game-engine`, GAME=jogo1\|2\|3); falta só a EC2 dedicada (item 3) | QA §3 / Arquitetura | 🔴 | ● |
+| 2 | 🟡 Migração WebSockets → **WebRTC** (canal de jogo) — implementado com fallback; falta validar handshake no navegador + medir latência | QA §3 / decisão v2 | 🔴 | ● |
 | 3 | **Distribuição na AWS: 1 serviço por EC2 + Load Balancer** | Possiveis_problemas / decisão v2 | 🔴 | ● |
-| 4 | Apache Kafka — sobe mas ninguém publica/consome | QA §3 / Arquitetura | 🔴 | ◑ |
-| 5 | Score Service (Python/Flask) — não existe | QA §3 / Arquitetura | 🔴 | ● |
-| 6 | Redis — sobe mas não há cache/leaderboard | QA §3 / Arquitetura | 🟠 | ◑ |
-| 7 | Leaderboard global (frontend + backend) — não existe | GDD / Possiveis_problemas | 🔴 | ◑ |
+| 4 | 🟡 Apache Kafka — engines publicam `match-completed`; Score consome (lógica validada; falta E2E com broker real) | QA §3 / Arquitetura | 🔴 | ◑ |
+| 5 | 🟡 Score Service (Python) — implementado: consumer Kafka + Redis/PostgreSQL + `GET /api/scores` (falta E2E) | QA §3 / Arquitetura | 🔴 | ● |
+| 6 | 🟡 Redis — sorted set de ranking por minigame já alimentado pelo Score; falta a leitura E2E + tela (item 7) | QA §3 / Arquitetura | 🟠 | ◑ |
+| 7 | 🟡 Leaderboard global por minigame — backend (`GET /api/scores`) + tela no dashboard implementados; falta confirmar no navegador com dados reais | GDD / Possiveis_problemas | 🔴 | ◑ |
 | 8 | gRPC síncrono p/ validação de JWT — não existe | Arquitetura | 🟠 | ◑ |
-| 9.1 | Validação de usuário/senha (4–30) no servidor C# | Possiveis_problemas | 🟠 | ◐ |
+| 9.1 | ✅ Validação de usuário/senha (4–30) no servidor C# | Possiveis_problemas | 🟠 | ◐ |
 | 9.2 | Unificar/decidir o serviço de auth (C# × lite Node) | Revisão v2 | 🟠 | ◐ |
-| 9.3 | Regra de vitória do Jogo 1 diverge do GDD | Revisão v1 (E2) | 🟡 | ◐ |
-| 9.4 | Remover manifestos k8s (fora de escopo agora) | Decisão v2 | 🟡 | ◐ |
-| 9.5 | Código morto: inimigo `formacao` | Revisão v1 (E3) | 🟡 | ◐ |
-| 9.6 | Segredos/credenciais por variável de ambiente (deploy AWS) | Deploy | 🟠 | ◐ |
-| 9.7 | Guia de deploy removido / links quebrados na doc | Revisão v2 | 🟡 | ◐ |
+| 9.3 | ✅ Regra de vitória do Jogo 1 diverge do GDD | Revisão v1 (E2) | 🟡 | ◐ |
+| 9.4 | ✅ Remover manifestos k8s (fora de escopo agora) | Decisão v2 | 🟡 | ◐ |
+| 9.5 | ✅ Código morto: inimigo `formacao` | Revisão v1 (E3) | 🟡 | ◐ |
+| 9.6 | ✅ Segredos/credenciais por variável de ambiente (deploy AWS) | Deploy | 🟠 | ◐ |
+| 9.7 | 🟡 Guia de deploy removido / links quebrados na doc | Revisão v2 | 🟡 | ◐ |
 | 10 | Replicação do PostgreSQL (Primary-Replica) | QA §3 / Arquitetura | 🟠 | ◑ |
 | 11 | Particionamento de dados | QA §3 / Arquitetura | 🟡 | ◑ |
 | 12 | Bateria de testes na AWS EC2 | QA §4 | 🟠 | ◑ |
@@ -60,7 +60,7 @@ Comparação entre **o que está sendo construído** e o diagrama de referência
 
 | Elemento do diagrama | Estado atual no código | Conformidade |
 |---|---|---|
-| Cliente ↔ servidor por **WebRTC** (canal de jogo) | Hoje é **WebSockets/Socket.io** | ⛔ Divergente → **migrar** (item 2). O mermaid já foi atualizado para WebRTC. |
+| Cliente ↔ servidor por **WebRTC** (canal de jogo) | **WebRTC DataChannel** (geckos.io) para inputs+estado, com fallback Socket.io | 🟡 Implementado (item 2); falta validar no navegador + medir latência |
 | Sinalização/lobby via WS + REST | Existe (Socket.io + REST no Auth) | ✅ |
 | **1 serviço por EC2 + Load Balancer** | Tudo roda junto via `docker-compose`; sem deploy AWS | ⛔ → **distribuir** (item 3) |
 | **Game Engines** (1 por jogo) | Física dos 3 jogos é **monólito** no gateway | ⛔ → **isolar** (item 1) |
@@ -84,6 +84,7 @@ Comparação entre **o que está sendo construído** e o diagrama de referência
   - Prever **STUN** (e **TURN** como fallback de NAT) — em EC2 com IP público, STUN costuma bastar (ver item 3).
 - **Conformidade:** alinha o código ao mermaid (que agora mostra `WebRTC DataChannel` direto cliente ↔ engine).
 - **Aceite:** uma partida roda inteiramente sobre WebRTC; medição de latência mostra redução vs WebSockets (registrar números — substitui a antiga "PoC").
+- **✔ Implementado (v2):** canal de jogo via **WebRTC DataChannel** com [geckos.io](https://github.com/geckosio/geckos.io) (UDP, não-confiável). O **hot path** (inputs `playerMovement`/`shoot`/`acao`/`j3_move`/`j3_shoot` e estado `gameUpdate`/`estadoDoJogo`/`j3_gameState`) trafega direto cliente↔engine pelo DataChannel; lobby, controle e sinalização seguem no Socket.io. Servidor: [game-engine/server.js](../../game-engine/server.js) (geckos por engine, porta de sinalização 5001/5002/5003, faixa UDP/ICE configurável). Cliente: [frontend/index.html](../../frontend/index.html) (helper `RT` + bundle [vendor/geckos.client.iife.js](../../frontend/vendor/geckos.client.iife.js)); flag `USE_WEBRTC` em [frontend/config.js](../../frontend/config.js). **Fallback automático para Socket.io** se o canal não abrir (sem regressão — validado por teste node-side). **Pendente:** confirmar o handshake no navegador e **medir a latência** (WebRTC × WebSockets) para registrar os números do aceite. TURN como fallback de NAT entra no item 3 (AWS).
 
 ---
 
@@ -142,27 +143,31 @@ Verificação de 2026-06-19: `grep -rn -i "kafka|redis|grpc"` no código-fonte (
 
 ### 4.1 🔴 Game Engines isolados — `game-engine/` (item 1)
 
-- **Situação:** stub ([game-engine/README.md](../../game-engine/README.md)); lógica dos 3 jogos dentro do gateway.
+- **Situação:** ~~stub; lógica dos 3 jogos dentro do gateway~~ → **resolvido**.
 - **Entregar:** extrair os loops de física (Jogo 1/2/3) para **processos/serviços independentes** (Node.js), cada um na sua EC2 (item 3). O gateway passa a só fazer lobby + sinalização. Cada engine termina hospedando o servidor WebRTC da sala (item 2).
 - **Aceite:** derrubar o engine do Jogo 1 não afeta partidas dos Jogos 2 e 3 (Particionamento Funcional real).
+- **✔ Concluído (v2):** física extraída para o serviço [game-engine](../../game-engine/) (módulos `games/jogo1|2|3.js` + `shared/constants.js`), com `server.js` parametrizado por `GAME`. São **3 processos independentes** (portas 4001/4002/4003). O [game-gateway](../../game-gateway/index.js) virou **relay**: autentica (JWT), faz lobby/roteamento e abre uma conexão-proxy por jogador a cada engine (id do cliente repassado como `playerId`), sem rodar física. **Isolamento validado**: com o engine do Jogo 1 derrubado, Jogos 2 e 3 continuam respondendo (`JOGO1=FALHOU JOGO2=OK JOGO3=OK`). Falta apenas a **EC2 dedicada por engine** (item 3) e a migração do transporte para **WebRTC** (item 2).
 
 ### 4.2 🔴 Apache Kafka — produtor/consumidor (item 4)
 
-- **Situação:** Kafka + Zookeeper sobem; **ninguém publica/consome**.
+- **Situação:** ~~Kafka + Zookeeper sobem; ninguém publica/consome~~ → **implementado** (falta E2E com broker real).
 - **Entregar:** cada Engine publica `match-completed` ao fim da partida (`kafkajs`); Score Service consome (cliente Kafka Python).
 - **Aceite:** com o Score Service **parado**, encerrar partidas **não perde** pontuação — ao subir o serviço, os eventos retidos são processados (Consistência Eventual).
+- **✔ Implementado (v2):** produtor `kafkajs` em [game-engine/kafka.js](../../game-engine/kafka.js) (`publishMatchCompleted`, tolerante a falha — nunca lança), inicializado em [game-engine/server.js](../../game-engine/server.js) e disparado nos 3 ganchos de fim de partida: Jogo 1 ([games/jogo1.js](../../game-engine/games/jogo1.js) `handleHit`), Jogo 2 ([games/jogo2.js](../../game-engine/games/jogo2.js) `fimDeJogo`) e Jogo 3 ([games/jogo3.js](../../game-engine/games/jogo3.js) `j3_gameOver`, vitória e derrota). Consumidor Python com **commit manual de offset após persistir** e `auto_offset_reset='earliest'` ([score-service/consumer.py](../../score-service/consumer.py)) → o aceite de Consistência Eventual fica garantido pela retenção do Kafka. Broker/tópico por env (`KAFKA_BROKER`/`MATCH_TOPIC`); compose injeta `kafka:29092` nos 3 engines + Score. **Validado:** sem broker e com broker morto o engine **não quebra** (fallback, testado node-side); a lógica do consumidor/ranking foi validada offline ([selftest.py](../../score-service/selftest.py)). **Pendente:** teste E2E com broker real (fase Docker/AWS — itens 3/12), pois não há Docker/Java no ambiente de dev.
 
 ### 4.3 🔴 Score Service (Python/Flask) — `score-service/` (item 5)
 
-- **Situação:** stub ([score-service/README.md](../../score-service/README.md)); o gateway grava win via REST no Auth ([game-gateway/index.js:76](../../game-gateway/index.js)).
+- **Situação:** ~~stub; o gateway grava win via REST no Auth~~ → **implementado** (serviço Python real).
 - **Entregar:** serviço Python que consome `match-completed`, atualiza ranking no **Redis**, persiste no PostgreSQL e expõe `GET /api/scores` para o leaderboard.
 - **Aceite:** fim de partida grava pontuação **sem** o gateway chamar o Auth diretamente.
+- **✔ Implementado (v2):** serviço Flask em [score-service/](../../score-service/) — consumidor Kafka em thread de fundo ([consumer.py](../../score-service/consumer.py)) → materializa o ranking por minigame no **Redis** (sorted set) e grava o histórico no **PostgreSQL** (tabela `scores`, criada no boot) ([store.py](../../score-service/store.py)); expõe `GET /api/scores?game=jogoN` + `/health` ([app.py](../../score-service/app.py)). Política por minigame: Jogo 1 = total de vitórias (`ZINCRBY`); Jogo 2/3 = melhor pontuação (`ZADD GT`). Tudo por env ([config.py](../../score-service/config.py)); `Dockerfile` + `requirements.txt` prontos; serviço adicionado ao [docker-compose.yml](../../docker-compose.yml). O fim de partida **não** passa mais pelo Auth para a pontuação — flui pelo Kafka (o `Wins` do Jogo 1 segue como contador legado no Auth, em paralelo). **Validado:** deps instalam (venv Python 3.13), `app.py` importa e sobe degradando com elegância sem Kafka/Redis/PG; rotas REST respondem (`/health` 200, `game` inválido 400, Redis fora 503); `selftest.py` confere a política de ranking. **Pendente:** E2E com broker/Redis/PG reais (itens 3/12) e a **tela** do leaderboard (item 7).
 
 ### 4.4 🟠 Redis — cache do leaderboard (item 6)
 
-- **Situação:** contêiner sobe; **sem uso**.
+- **Situação:** ~~contêiner sobe; sem uso~~ → **em uso** pelo Score Service (falta a leitura E2E).
 - **Entregar:** ranking por minigame em Redis (sorted set), alimentado pelo Score Service.
 - **Aceite:** a leitura do leaderboard vem do Redis, não de varredura no PostgreSQL.
+- **🟡 Parcial (v2):** o Score Service grava o ranking por minigame em sorted sets `leaderboard:jogoN` (`ZINCRBY`/`ZADD GT`) e a rota `GET /api/scores` lê **direto do Redis** (`ZREVRANGE`), sem varrer o PostgreSQL ([score-service/store.py](../../score-service/store.py)). **Falta** validar a leitura E2E com Redis real e a **tela** que a consome (item 7).
 
 ### 4.5 🟠 gRPC síncrono — validação de JWT (item 8)
 
@@ -172,9 +177,10 @@ Verificação de 2026-06-19: `grep -rn -i "kafka|redis|grpc"` no código-fonte (
 
 ### 4.6 🔴 Leaderboard global (item 7)
 
-- **Situação:** o GDD prevê "Ranking global por minigame" ([GameDesignDocument.md](../GameDesignDocument.md)), mas **não há leaderboard** no frontend nem no backend. `grep -i "leaderboard|ranking"` em [frontend/index.html](../../frontend/index.html) **não retorna nada**; o backend só guarda um contador `Wins` ([auth-service/Models/User.cs](../../auth-service/Models/User.cs)).
+- **Situação:** ~~não há leaderboard no frontend nem no backend; só o contador `Wins`~~ → **implementado** (backend + tela).
 - **Entregar:** pontuação **por minigame** (não só "vitórias"); tela de leaderboard com acesso no dashboard (nome, pontuação, data), servida pelo Score Service.
 - **Aceite:** após uma partida, a pontuação obtida aparece no ranking do respectivo minigame.
+- **✔ Implementado (v2):** **backend** = `GET /api/scores` do Score Service (ranking por minigame a partir do Redis — item 4.3). **Frontend** = nova **tela de Ranking Global** acessível por botão no dashboard ([frontend/index.html](../../frontend/index.html): `openLeaderboard`/`loadLeaderboard`/`renderLeaderboard`, tela `leaderboard-container`), com uma coluna por jogo (Jogo 1 = vitórias; Jogo 2/3 = melhor pontuação). Endpoint configurável por `SCORE_PORT` em [frontend/config.js](../../frontend/config.js). **Degrada com elegância:** se o Score Service não estiver acessível (ex.: stack DEV sem Kafka/Redis), mostra aviso e **não quebra a v1**. **Validado:** data path write+read com Redis real (`fakeredis`, API `redis-py`: `ZINCRBY`/`ZADD GT`/`ZREVRANGE`) e o contrato HTTP que o frontend consome; sintaxe do JS do cliente conferida. **Pendente:** confirmação visual no navegador com dados reais (fase Docker/AWS, junto do E2E dos itens 4/5).
 
 > **Nota:** o requisito de [Possiveis_problemas_v1.md](../v1/Possiveis_problemas_v1.md) — *"a pontuação de cada jogo deve ser salva permanentemente ao perfil"* — hoje é cumprido só parcialmente (contador `Wins` agregado, sem pontuação por jogo).
 
@@ -187,6 +193,7 @@ Verificação de 2026-06-19: `grep -rn -i "kafka|redis|grpc"` no código-fonte (
 - **Situação:** o requisito de tamanho (4–30 caracteres, [Possiveis_problemas_v1.md](../v1/Possiveis_problemas_v1.md)) é validado **no cliente** ([frontend/index.html:606-607](../../frontend/index.html)) e no **auth-service-lite** ([server.js:31-32](../../auth-service-lite/server.js)), mas **não** no `auth-service` C# usado no [docker-compose.yml](../../docker-compose.yml). `AuthController.Register` ([AuthController.cs:25](../../auth-service/Controllers/AuthController.cs)) aceita qualquer tamanho → validação **burlável** por chamada direta à API.
 - **Entregar:** validação server-side (DataAnnotations no `UserDto` ou checagem no controller).
 - **Aceite:** `POST /api/auth/register` fora de 4–30 retorna `400` mesmo sem passar pelo frontend.
+- **✔ Concluído (v2):** `UserDto` valida tamanho via DataAnnotations `[StringLength(30, MinimumLength = 4)]` em [auth-service/Models/User.cs:13-22](../../auth-service/Models/User.cs) e o atributo `[ApiController]` ([AuthController.cs:12](../../auth-service/Controllers/AuthController.cs)) devolve `400` automaticamente para payloads fora de 4–30.
 
 ### 5.2 🟠 Decidir o serviço de auth canônico (9.2)
 
@@ -199,24 +206,28 @@ Verificação de 2026-06-19: `grep -rn -i "kafka|redis|grpc"` no código-fonte (
 - **Situação:** o código encerra com `p1Score >= 2 || p2Score >= 2` (primeiro a 2) — [game-gateway/index.js:309](../../game-gateway/index.js). O GDD descreve **"3 vitórias consecutivas"** e o código **não** zera a sequência ao perder um round.
 - **Entregar:** alinhar código e GDD (escolher a regra e implementá-la, incluindo reset de sequência se for "consecutivas").
 - **Aceite:** condição de vitória idêntica entre jogo e documento.
+- **✔ Concluído (v2):** implementadas **3 vitórias consecutivas** com reset da sequência do adversário (`ROUNDS_TO_WIN = 3`) em [game-gateway/index.js](../../game-gateway/index.js) (função `handleHit`), alinhado ao GDD (Minigame 1 — Duelo).
 
 ### 5.4 🟡 Remover manifestos k8s (9.4)
 
 - **Situação:** existe `k8s/` (deployment-auth/gateway/frontend, postgres-statefulset). Como Kubernetes saiu do escopo (decisão v2), esses arquivos viram código morto de infraestrutura — e ainda contêm o bug de `targetPort: 8080` × app na 5000 ([k8s/deployment-auth.yaml](../../k8s/deployment-auth.yaml) × [Program.cs:75](../../auth-service/Program.cs)), que deixa de importar.
 - **Entregar:** **remover a pasta `k8s/`** e qualquer referência a ela na documentação.
 - **Aceite:** o repositório não contém mais manifestos de orquestração; a distribuição é descrita só via EC2 (item 3).
+- **✔ Concluído (v2):** a pasta `k8s/` não existe mais no repositório — nenhum manifesto YAML de orquestração presente (verificado em 2026-06-19).
 
 ### 5.5 🟡 Código morto: inimigo `formacao` (9.5)
 
 - **Situação:** o tipo `formacao` é tratado/desenhado ([game-gateway/index.js:399](../../game-gateway/index.js), [frontend/index.html:943](../../frontend/index.html)) mas **nunca é gerado** — `j3_spawnEnemies` só cria `batalha`, `tanque` e `mae` ([index.js:469-470](../../game-gateway/index.js)). Os nomes internos divergem do GDD (Caçador/Destruidor/Leviatã).
 - **Entregar:** remover o tipo ou passar a gerá-lo; padronizar nomenclatura com o GDD.
 - **Aceite:** sem ramos de código inalcançáveis para tipos de inimigo.
+- **✔ Concluído (v2):** removido o tipo morto `formacao` em [game-gateway/index.js](../../game-gateway/index.js) (`j3_updateGameLogic`) e em [frontend/index.html](../../frontend/index.html) (`j3_gameLoop`); adicionado comentário mapeando os nomes internos ao GDD (`batalha`=Caçador, `tanque`=Destruidor, `mae`=Leviatã).
 
 ### 5.6 🟠 Segredos/credenciais por variável de ambiente (9.6)
 
 - **Situação:** o **mesmo** `JWT_SECRET` padrão está chumbado em [auth-service/Program.cs:22](../../auth-service/Program.cs), [auth-service/Controllers/AuthController.cs:80](../../auth-service/Controllers/AuthController.cs), [game-gateway/index.js:13](../../game-gateway/index.js) e [auth-service-lite/server.js:12](../../auth-service-lite/server.js); a senha do PostgreSQL é literal no compose. *(Isto não é sobre criptografar o tráfego — que está fora de escopo — e sim sobre não publicar segredos no código ao subir na AWS.)*
 - **Entregar:** segredo de JWT e credenciais por **variável de ambiente** em cada EC2 (item 3.3).
 - **Aceite:** subir em produção sem a variável definida **falha de forma explícita** (não cai no segredo default).
+- **✔ Concluído (v2):** removido o segredo default de [Program.cs:22](../../auth-service/Program.cs), [AuthController.cs:80](../../auth-service/Controllers/AuthController.cs), [game-gateway/index.js:13](../../game-gateway/index.js) e [auth-service-lite/server.js:12](../../auth-service-lite/server.js) — cada serviço **aborta** sem o segredo. O [docker-compose.yml](../../docker-compose.yml) injeta `JWT_SECRET` (Auth via `JwtSettings__Secret`, Gateway via `JWT_SECRET`) e `POSTGRES_PASSWORD` a partir do `.env` usando `${VAR:?}` (falha se ausente); a senha do Postgres saiu do compose.
 
 ### 5.7 🟡 Guia de deploy e links da doc (9.7)
 
@@ -262,22 +273,22 @@ Verificação de 2026-06-19: `grep -rn -i "kafka|redis|grpc"` no código-fonte (
 
 ### 8.1 Técnico (arquitetura e código)
 
-- [ ] Os 3 jogos rodam em **engines isolados**, cada um em sua **EC2** (itens 1, 3).
-- [ ] O canal de jogo usa **WebRTC**; WS/REST só para lobby/sinalização/login (item 2).
+- [ ] Os 3 jogos rodam em **engines isolados** ✅ (item 1 — 3 processos independentes, isolamento validado), cada um em sua **EC2** ⛔ (item 3 — pendente).
+- [ ] O canal de jogo usa **WebRTC** 🟡 (item 2 — hot path no DataChannel com fallback Socket.io implementado; falta validar no navegador + medir latência); WS/REST para lobby/sinalização/login ✅.
 - [ ] **Cada serviço em uma EC2 distinta**, com **Load Balancer** para HTTP/sinalização e **matchmaking** distribuindo as partidas entre engines (item 3).
-- [ ] Fim de partida flui por **Kafka → Score Service → Redis/PostgreSQL**, com tolerância a falha comprovada (itens 4, 5, 6).
-- [ ] Existe **leaderboard global por minigame** ponta a ponta (item 7).
+- [ ] Fim de partida flui por **Kafka → Score Service → Redis/PostgreSQL** 🟡 (itens 4, 5, 6 — produtor/consumidor e persistência implementados; tolerância a falha por commit-após-persistir; falta o teste E2E com broker real).
+- [ ] Existe **leaderboard global por minigame** ponta a ponta 🟡 (item 7 — backend `GET /api/scores` + tela no dashboard implementados; falta a confirmação visual no navegador com dados reais).
 - [ ] Validação de JWT via **gRPC** ao Auth (item 8).
-- [ ] Validações de usuário/senha **server-side** no auth canônico; segredos por variável de ambiente (itens 9.1, 9.2, 9.6).
-- [ ] Sem manifestos k8s, sem código morto, sem divergência código×GDD, links da doc válidos (itens 9.3, 9.4, 9.5, 9.7).
+- [ ] Validações de usuário/senha **server-side** no auth canônico; segredos por variável de ambiente (itens 9.1 ✅, 9.2 ⛔, 9.6 ✅). *(falta só 9.2: decidir o auth canônico)*
+- [ ] Sem manifestos k8s, sem código morto, sem divergência código×GDD, links da doc válidos (itens 9.3 ✅, 9.4 ✅, 9.5 ✅, 9.7 🟡). *(falta só 9.7: varredura de links em Docs/v1 + guia de deploy AWS — acoplado ao item 3)*
 - [ ] PostgreSQL com **replicação** e **particionamento** (itens 10, 11).
 
 ### 8.2 Conformidade com a especificação do trabalho
 
-> Espelha o [Checklist de Requisitos da Especificação](../Requisitos/Checklist%20de%20Requisitos%20da%20Especificação.md). Os itens técnicos acima já cobrem as características obrigatórias (1.x), os paradigmas async/pub-sub (2.3, 2.4) e a 3ª linguagem (Python no Score). Faltam, além deles, os **entregáveis de demonstração**:
+> Espelha o [Checklist de Requisitos da Especificação](../Requisitos%20do%20trabalho/Checklist%20de%20Requisitos%20da%20Especificação.md). Os itens técnicos acima já cobrem as características obrigatórias (1.x), os paradigmas async/pub-sub (2.3, 2.4) e a 3ª linguagem (Python no Score). Faltam, além deles, os **entregáveis de demonstração**:
 
 - [ ] **Serviço acessível na Internet** via deploy público na AWS (req. 1.1 → item 3).
-- [ ] **Interação síncrona (gRPC)** + **assíncrona/messaging (Kafka)** demonstráveis (reqs. 1.5, 2.3, 2.4 → itens 8, 4, 5).
+- [ ] **Interação síncrona (gRPC)** + **assíncrona/messaging (Kafka)** demonstráveis (reqs. 1.5, 2.3, 2.4 → itens 8, 4, 5) — messaging/pub-sub via Kafka **implementado** (itens 4, 5); falta o **gRPC** (item 8) e o teste E2E.
 - [ ] **Replicação e particionamento** de dados exercitados na demo (reqs. 1.6, 1.7 → itens 10, 11).
 - [ ] **Clientes simulados** (bots/script de carga) para exercitar concorrência sistematicamente (req. 4.2).
 - [ ] **Cenário de demonstração** roteirizado, cobrindo concorrência, sync/async, replicação, particionamento e tolerância a falhas (req. 4.3).

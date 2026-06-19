@@ -15,7 +15,15 @@ Para rodar este projeto em qualquer máquina, você precisará apenas do:
 
 Você só precisará abrir **1 terminal** na raiz do projeto (`spaceship-game`):
 
-### Subir a Infraestrutura (Banco de Dados, APIs, Gateway e Frontend)
+### 1. Criar o arquivo de configuração `.env`
+Os segredos (senha do banco e segredo do JWT) **não ficam no código**: vêm do `.env`.
+Copie o modelo e ajuste os valores se desejar:
+```bash
+cp .env.example .env
+```
+> Sem `POSTGRES_PASSWORD` e `JWT_SECRET` definidos no `.env`, o `docker compose up` falha de propósito, com mensagem indicando a variável faltante.
+
+### 2. Subir a Infraestrutura (Banco de Dados, APIs, Gateway e Frontend)
 Este comando constrói e liga automaticamente toda a frota do jogo:
 ```bash
 sudo docker compose up -d --build
@@ -35,7 +43,8 @@ sudo docker compose down
 
 ## 🏗️ Estrutura do Projeto
 
-- `/auth-service`: API REST em ASP.NET Core para Login e Registro.
-- `/game-gateway`: Servidor Socket.io em Node.js com toda a física dos 3 jogos.
+- `/auth-service`: API REST em ASP.NET Core para Login e Registro (JWT).
+- `/game-gateway`: Gateway/Lobby em Node.js — autentica, faz matchmaking e **roteia** (relay): para cada cliente abre uma conexão a cada Game Engine. **Não roda física.**
+- `/game-engine`: Game Engine em Node.js — roda a física de **um** jogo. A mesma imagem serve os 3, escolhendo o jogo pela variável `GAME` (`jogo1`/`jogo2`/`jogo3`). São 3 processos independentes (Particionamento Funcional: derrubar um não afeta os outros). Hospeda também o **canal de jogo via WebRTC** (geckos.io): inputs e estado de partida trafegam por DataChannel (UDP) direto cliente↔engine, com fallback automático para Socket.io.
 - `/frontend`: Aplicação client-side (HTML/CSS/JS) para interação.
-- `docker-compose.yml`: Infraestrutura de apoio.
+- `docker-compose.yml`: Infraestrutura de desenvolvimento (todos os serviços).

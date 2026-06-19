@@ -1,0 +1,7 @@
+# Score Service (Python) — dependências.
+# kafka-python-ng: fork mantido do kafka-python, compatível com Python 3.11–3.13
+# (a importação continua sendo `from kafka import ...`).
+flask==3.0.3
+kafka-python-ng==2.2.3
+redis==5.0.8
+psycopg2-binary==2.9.10

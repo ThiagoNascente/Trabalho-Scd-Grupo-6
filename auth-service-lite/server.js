@@ -9,7 +9,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_that_should_be_long_enough_for_hmac_sha256_in_production";
+// Segredo do JWT vem SEMPRE de variável de ambiente (sem default chumbado).
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error("[FATAL] JWT_SECRET não definido. Configure a variável de ambiente (veja .env.example).");
+  process.exit(1);
+}
 const PORT = process.env.AUTH_PORT || 5000;
 const DB_FILE = path.join(__dirname, 'users.json');
 

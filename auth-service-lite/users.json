@@ -4,5 +4,11 @@
     "username": "vinicius",
     "passwordHash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
     "wins": 0
+  },
+  {
+    "id": 2,
+    "username": "tester_63328",
+    "passwordHash": "55a5e9e78207b4df8699d60886fa070079463547b095d1a05bc719bb4e6cd251",
+    "wins": 0
   }
 ]

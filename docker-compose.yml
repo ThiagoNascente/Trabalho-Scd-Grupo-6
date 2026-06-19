@@ -1,15 +1,22 @@
 version: '3.8'
 
+# ==========================================================================
+# Ambiente de DESENVOLVIMENTO local (não usar em produção AWS).
+# Segredos vêm do arquivo .env (copie de .env.example: `cp .env.example .env`).
+# As variáveis com `:?` ABORTAM o `docker compose up` com mensagem clara se
+# não estiverem definidas — nenhum segredo fica chumbado aqui.
+# ==========================================================================
+
 services:
   postgres:
     image: postgres:15
     container_name: spaceship_postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: authdb
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env (copie de .env.example)}
+      POSTGRES_DB: ${POSTGRES_DB:-authdb}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -54,9 +61,10 @@ services:
       dockerfile: Dockerfile
     container_name: spaceship_auth
     ports:
-      - "5000:5000"
+      - "${AUTH_PORT:-5000}:5000"
     environment:
-      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=authdb;Username=postgres;Password=password
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=${POSTGRES_DB:-authdb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env (copie de .env.example)}
+      - JwtSettings__Secret=${JWT_SECRET:?defina JWT_SECRET no .env (copie de .env.example)}
     depends_on:
       - postgres
     restart: unless-stopped
@@ -67,11 +75,112 @@ services:
       dockerfile: Dockerfile
     container_name: spaceship_gateway
     ports:
-      - "3000:3000"
+      - "${GATEWAY_PORT:-3000}:3000"
     environment:
+      - JWT_SECRET=${JWT_SECRET:?defina JWT_SECRET no .env (copie de .env.example)}
+      - ENGINE1_URL=http://game-engine-1:4001
+      - ENGINE2_URL=http://game-engine-2:4002
+      - ENGINE3_URL=http://game-engine-3:4003
+    depends_on:
+      - game-engine-1
+      - game-engine-2
+      - game-engine-3
+    restart: unless-stopped
+
+  # Game Engines (1 por jogo). Mesma imagem, GAME diferente => Particionamento
+  # Funcional: derrubar um engine não afeta os outros jogos.
+  game-engine-1:
+    build:
+      context: ./game-engine
+      dockerfile: Dockerfile
+    container_name: spaceship_engine1
+    environment:
+      - GAME=jogo1
+      - PORT=4001
+      - GECKOS_PORT=5001
+      - GECKOS_UDP_MIN=20001
+      - GECKOS_UDP_MAX=20010
+      - JWT_SECRET=${JWT_SECRET:?defina JWT_SECRET no .env (copie de .env.example)}
       - AUTH_API_URL=http://auth-service:5000/api/auth
+      - KAFKA_BROKER=kafka:29092               # publica match-completed (item 4)
+      - MATCH_TOPIC=match-completed
+    ports:
+      - "${ENGINE1_PORT:-4001}:4001"          # Socket.io (relay do gateway)
+      - "5001:5001"                            # WebRTC: sinalização (geckos)
+      - "20001-20010:20001-20010/udp"          # WebRTC: faixa UDP/ICE (DataChannel)
     depends_on:
       - auth-service
+      - kafka
+    restart: unless-stopped
+
+  game-engine-2:
+    build:
+      context: ./game-engine
+      dockerfile: Dockerfile
+    container_name: spaceship_engine2
+    environment:
+      - GAME=jogo2
+      - PORT=4002
+      - GECKOS_PORT=5002
+      - GECKOS_UDP_MIN=20011
+      - GECKOS_UDP_MAX=20020
+      - JWT_SECRET=${JWT_SECRET:?defina JWT_SECRET no .env (copie de .env.example)}
+      - KAFKA_BROKER=kafka:29092               # publica match-completed (item 4)
+      - MATCH_TOPIC=match-completed
+    ports:
+      - "${ENGINE2_PORT:-4002}:4002"
+      - "5002:5002"
+      - "20011-20020:20011-20020/udp"
+    depends_on:
+      - kafka
+    restart: unless-stopped
+
+  game-engine-3:
+    build:
+      context: ./game-engine
+      dockerfile: Dockerfile
+    container_name: spaceship_engine3
+    environment:
+      - GAME=jogo3
+      - PORT=4003
+      - GECKOS_PORT=5003
+      - GECKOS_UDP_MIN=20021
+      - GECKOS_UDP_MAX=20030
+      - JWT_SECRET=${JWT_SECRET:?defina JWT_SECRET no .env (copie de .env.example)}
+      - KAFKA_BROKER=kafka:29092               # publica match-completed (item 4)
+      - MATCH_TOPIC=match-completed
+    ports:
+      - "${ENGINE3_PORT:-4003}:4003"
+      - "5003:5003"
+      - "20021-20030:20021-20030/udp"
+    depends_on:
+      - kafka
+    restart: unless-stopped
+
+  # Score Service (Python) — consome match-completed do Kafka, materializa o
+  # ranking no Redis e o histórico no PostgreSQL; expõe GET /api/scores (itens 4, 5, 6).
+  score-service:
+    build:
+      context: ./score-service
+      dockerfile: Dockerfile
+    container_name: spaceship_score
+    environment:
+      - SCORE_PORT=8000
+      - KAFKA_BROKER=kafka:29092
+      - MATCH_TOPIC=match-completed
+      - KAFKA_GROUP=score-service
+      - REDIS_URL=redis://redis:6379/0
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-authdb}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env (copie de .env.example)}
+    ports:
+      - "${SCORE_PORT:-8000}:8000"
+    depends_on:
+      - kafka
+      - redis
+      - postgres
     restart: unless-stopped
 
   frontend:
@@ -80,7 +189,7 @@ services:
       dockerfile: Dockerfile
     container_name: spaceship_frontend
     ports:
-      - "8080:80"
+      - "${FRONTEND_PORT:-8080}:80"
     restart: unless-stopped
 
 volumes:

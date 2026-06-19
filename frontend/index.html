@@ -9,6 +9,8 @@
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <!-- Configuração centralizada de IP/portas (ver frontend/config.js) -->
     <script src="config.js"></script>
+    <!-- Cliente WebRTC (geckos.io) — canal de jogo em tempo real (item 2). Bundle local. -->
+    <script src="vendor/geckos.client.iife.js"></script>
     <style>
         :root {
             --primary: #8a2be2;
@@ -307,6 +309,51 @@
             font-size: 14px;
         }
 
+        /* LEADERBOARD (Ranking global por minigame — itens 6 e 7) */
+        .lb-metric {
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 4px 0 12px;
+        }
+
+        .lb-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            text-align: left;
+        }
+
+        .lb-list li {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 6px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 14px;
+        }
+
+        .lb-list li:last-child {
+            border: none;
+        }
+
+        .lb-list .lb-rank {
+            color: #f1c40f;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .lb-list .lb-score {
+            color: #00ffff;
+            font-weight: bold;
+        }
+
+        .lb-empty {
+            color: #888;
+            font-style: italic;
+            padding: 8px 6px;
+        }
+
         /* GAME AREA */
         .hud {
             display: flex;
@@ -421,6 +468,39 @@
                 <h3>Jogo 3</h3>
                 <p style="font-size: 13px; color: #aaa;">Defesa de Frota</p>
                 <button class="btn" onclick="openGame3Lobby()" disabled id="btn-jogo3">Entrar</button>
+            </div>
+        </div>
+        <button class="btn" onclick="openLeaderboard()"
+            style="margin-top: 25px; width:auto; padding: 10px 28px; background: linear-gradient(135deg, #f1c40f 0%, #f39c12 100%);">🏆
+            Ranking Global</button>
+    </div>
+
+    <!-- TELA DE LEADERBOARD (Ranking global por minigame — itens 6 e 7) -->
+    <div class="glass-panel" id="leaderboard-container">
+        <button class="btn" onclick="backToDashboard()"
+            style="width:auto; padding: 5px 15px; position:absolute; top: 15px; left: 15px; background: transparent; border: 1px solid #555;">&larr;
+            Voltar</button>
+        <h1>Ranking Global</h1>
+        <p style="color: #bbb; margin-bottom: 12px;">Os melhores pilotos de cada minigame.</p>
+        <button class="btn" onclick="loadLeaderboard()"
+            style="width:auto; padding: 6px 18px; margin-bottom: 12px; background: transparent; border: 1px solid #555;">↻
+            Atualizar</button>
+        <div id="lb-status" style="min-height: 18px; font-size: 14px; color: #f39c12;"></div>
+        <div class="game-grid">
+            <div class="game-card">
+                <h3>Batalha Espacial</h3>
+                <p class="lb-metric">Vitórias</p>
+                <ol id="lb-jogo1" class="lb-list"></ol>
+            </div>
+            <div class="game-card">
+                <h3>Cinturão de Asteroides</h3>
+                <p class="lb-metric">Melhor pontuação</p>
+                <ol id="lb-jogo2" class="lb-list"></ol>
+            </div>
+            <div class="game-card">
+                <h3>Defesa de Frota</h3>
+                <p class="lb-metric">Melhor pontuação</p>
+                <ol id="lb-jogo3" class="lb-list"></ol>
             </div>
         </div>
     </div>
@@ -549,8 +629,63 @@
         const PROTOCOL = window.location.protocol;
         const AUTH_PORT = CFG.AUTH_PORT || 5000;
         const GATEWAY_PORT = CFG.GATEWAY_PORT || 3000;
+        const SCORE_PORT = CFG.SCORE_PORT || 8000;
         const API_URL = `${PROTOCOL}//${HOST}:${AUTH_PORT}/api/auth`;
+        const SCORE_API_URL = `${PROTOCOL}//${HOST}:${SCORE_PORT}/api/scores`;
         let socket;
+
+        // ==========================================================================
+        // CANAL DE JOGO EM TEMPO REAL (WebRTC / item 2) — com fallback p/ Socket.io.
+        // RT.connect(game) abre o DataChannel direto no Game Engine do jogo escolhido.
+        // RT.send usa o canal se aberto; senão, o Socket.io. Os handlers de ESTADO
+        // são os mesmos nos dois transportes (applyGameUpdate/applyEstadoJogo2/applyJ3State).
+        // ==========================================================================
+        const RT = {
+            channel: null, ready: false,
+            connect(game) {
+                this.close();
+                const geckos = (window.geckosClient && (window.geckosClient.default || window.geckosClient));
+                const ports = CFG.ENGINE_GECKOS_PORTS || {};
+                if (!CFG.USE_WEBRTC || typeof geckos !== 'function' || !ports[game]) return; // permanece no Socket.io
+                try {
+                    const token = localStorage.getItem('spaceship_token');
+                    const ch = geckos({ url: `${PROTOCOL}//${HOST}`, port: ports[game], authorization: token });
+                    ch.onConnect((error) => {
+                        if (error) { console.warn('[WebRTC] canal indisponível, usando Socket.io:', error.message || error); return; }
+                        this.channel = ch; this.ready = true;
+                        ch.emit('rt-init', { playerId: socket.id });
+                        ch.on('gameUpdate', applyGameUpdate);
+                        ch.on('estadoDoJogo', applyEstadoJogo2);
+                        ch.on('j3_gameState', applyJ3State);
+                        console.log('[WebRTC] canal de jogo aberto:', game);
+                    });
+                    ch.onDisconnect(() => { this.ready = false; });
+                } catch (e) { console.warn('[WebRTC] falha ao abrir canal, usando Socket.io:', e.message); }
+            },
+            send(event, data) {
+                if (this.ready && this.channel) { try { this.channel.emit(event, data); return; } catch (_) {} }
+                if (socket) socket.emit(event, data);
+            },
+            close() { if (this.channel) { try { this.channel.close(); } catch (_) {} } this.channel = null; this.ready = false; }
+        };
+
+        // Handlers de ESTADO por tick (chamados pelo Socket.io e pelo WebRTC).
+        function applyGameUpdate(roomState) {
+            const serverPlayerIds = Object.keys(roomState.players);
+            for (const localId in localState.players) { if (!serverPlayerIds.includes(localId)) delete localState.players[localId]; }
+            localState.lasers = roomState.lasers;
+            document.getElementById('roundNumber').innerText = roomState.round; document.getElementById('p1Score').innerText = roomState.p1Score; document.getElementById('p2Score').innerText = roomState.p2Score;
+            for (let id in roomState.players) {
+                if (!localState.players[id]) localState.players[id] = { x: roomState.players[id].x };
+                localState.players[id].targetX = roomState.players[id].x; localState.players[id].y = roomState.players[id].y; localState.players[id].color = roomState.players[id].color;
+            }
+        }
+        function applyEstadoJogo2(estado) { j2_estadoDoJogo = estado; }
+        function applyJ3State(state) {
+            j3_gameState = state;
+            // Limpa o alerta do chefe quando a fase deixa de ser 'warning'
+            if (state.phase !== 'warning' && j3_warningShown) { document.getElementById('j3-overlay').innerHTML = ''; j3_warningShown = false; }
+        }
 
         // ==========================================
         // ÁUDIO — efeito sonoro do disparo da nave pessoal
@@ -575,7 +710,7 @@
         // GERENCIADOR CENTRAL DE TELAS
         // Garante que apenas uma tela fique visível — evita a duplicação do lobby/menus.
         // ==========================================
-        const SCREENS = ['auth-container', 'dashboard-container', 'game1-lobby', 'game-area', 'game2-lobby', 'game2-waiting', 'game2-area', 'game3-lobby', 'game3-waiting', 'game3-area'];
+        const SCREENS = ['auth-container', 'dashboard-container', 'leaderboard-container', 'game1-lobby', 'game-area', 'game2-lobby', 'game2-waiting', 'game2-area', 'game3-lobby', 'game3-waiting', 'game3-area'];
         function showScreen(id) {
             SCREENS.forEach(s => { const el = document.getElementById(s); if (el) el.style.display = 'none'; });
             const target = document.getElementById(id);
@@ -635,6 +770,43 @@
         function backToDashboard() { showDashboard(); }
 
         // ==========================================
+        // LEADERBOARD (Ranking global por minigame — itens 6 e 7)
+        // Lê o Score Service (REST). Degrada com elegância: se o serviço não
+        // estiver no ar (ex.: stack DEV sem Kafka/Redis), mostra aviso sem quebrar.
+        // ==========================================
+        const LB_GAMES = ['jogo1', 'jogo2', 'jogo3'];
+        function openLeaderboard() { showScreen('leaderboard-container'); loadLeaderboard(); }
+
+        async function loadLeaderboard() {
+            const status = document.getElementById('lb-status');
+            status.style.color = '#f39c12'; status.innerText = 'Carregando ranking...';
+            try {
+                const res = await fetch(`${SCORE_API_URL}?limit=10`);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                LB_GAMES.forEach(g => renderLeaderboard(g, data[g] || []));
+                status.innerText = '';
+            } catch (err) {
+                LB_GAMES.forEach(g => { const el = document.getElementById('lb-' + g); if (el) el.innerHTML = ''; });
+                status.style.color = '#e74c3c';
+                status.innerText = 'Ranking indisponível no momento (o Score Service não está acessível).';
+            }
+        }
+
+        function renderLeaderboard(game, rows) {
+            const el = document.getElementById('lb-' + game);
+            if (!el) return;
+            el.innerHTML = '';
+            if (!rows.length) { el.innerHTML = '<li class="lb-empty">Sem registros ainda.</li>'; return; }
+            rows.forEach((r, i) => {
+                const li = document.createElement('li');
+                const name = String(r.username == null ? '—' : r.username).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                li.innerHTML = `<span><span class="lb-rank">${i + 1}º</span>${name}</span><span class="lb-score">${Number(r.score) || 0}</span>`;
+                el.appendChild(li);
+            });
+        }
+
+        // ==========================================
         // SOCKET.IO CONEXÃO GERAL
         // ==========================================
         function connectSocket() {
@@ -668,22 +840,15 @@
                 myPlayerIsP1 = room.players[socket.id] ? room.players[socket.id].isP1 : true;
                 document.getElementById('roundNumber').innerText = room.round; document.getElementById('p1Score').innerText = room.p1Score; document.getElementById('p2Score').innerText = room.p2Score;
                 document.getElementById('overlay').innerText = "Aguardando Oponente...";
+                RT.connect('jogo1'); // abre o DataChannel direto no engine do Jogo 1
             });
             socket.on('countdown', (count) => {
                 const overlayEl = document.getElementById('overlay');
                 if (count > 0) overlayEl.innerText = count; else { overlayEl.innerText = "LUTEM!"; setTimeout(() => overlayEl.innerText = "", 1000); }
             });
-            socket.on('gameUpdate', (roomState) => {
-                const serverPlayerIds = Object.keys(roomState.players);
-                for (const localId in localState.players) { if (!serverPlayerIds.includes(localId)) delete localState.players[localId]; }
-                localState.lasers = roomState.lasers;
-                document.getElementById('roundNumber').innerText = roomState.round; document.getElementById('p1Score').innerText = roomState.p1Score; document.getElementById('p2Score').innerText = roomState.p2Score;
-                for (let id in roomState.players) {
-                    if (!localState.players[id]) localState.players[id] = { x: roomState.players[id].x };
-                    localState.players[id].targetX = roomState.players[id].x; localState.players[id].y = roomState.players[id].y; localState.players[id].color = roomState.players[id].color;
-                }
-            });
+            socket.on('gameUpdate', applyGameUpdate);
             socket.on('matchOver', (data) => {
+                RT.close();
                 inGame = false; document.getElementById('overlay').innerText = data.reason;
                 for (let id in localState.players) localState.players[id].targetX = localState.players[id].x;
                 setTimeout(() => {
@@ -710,9 +875,11 @@
             socket.on('partidaIniciada', () => {
                 showScreen('game2-area');
                 j2_inGame = true; j2_keys = { left: false, right: false };
+                RT.connect('jogo2'); // abre o DataChannel direto no engine do Jogo 2
             });
-            socket.on('estadoDoJogo', (estado) => { j2_estadoDoJogo = estado; });
+            socket.on('estadoDoJogo', applyEstadoJogo2);
             socket.on('fimDeJogo', (pontos) => {
+                RT.close();
                 j2_inGame = false; const overlay = document.getElementById('j2-overlay');
                 overlay.innerHTML = `Impacto Detectado!<br><span style="font-size:2rem;color:#fff;">Asteroides Destruídos: ${pontos}</span>`;
                 setTimeout(() => {
@@ -750,18 +917,16 @@
             socket.on('j3_gameStarted', () => {
                 showScreen('game3-area');
                 j3_inGame = true; j3_keys = { left: false, right: false }; j3_warningShown = false;
+                RT.connect('jogo3'); // abre o DataChannel direto no engine do Jogo 3
             });
-            socket.on('j3_gameState', (state) => {
-                j3_gameState = state;
-                // Limpa o alerta do chefe quando a fase deixa de ser 'warning'
-                if (state.phase !== 'warning' && j3_warningShown) { document.getElementById('j3-overlay').innerHTML = ''; j3_warningShown = false; }
-            });
+            socket.on('j3_gameState', applyJ3State);
             socket.on('j3_bossWarning', (data) => {
                 j3_warningShown = true;
                 const overlay = document.getElementById('j3-overlay');
                 overlay.innerHTML = `⚠️ A NAVE MÃE SE APROXIMA<br><span style="font-size:3.5rem;color:#fff;">${data.seconds}</span>`;
             });
             socket.on('j3_gameOver', (data) => {
+                RT.close();
                 j3_inGame = false; const overlay = document.getElementById('j3-overlay');
                 const pontuacao = `<br><span style="font-size:1.6rem;color:#e0aaff;">Pontuação: ${data.score || 0}</span>`;
                 if (data.won) { overlay.innerHTML = `Vitória!<br><span style="font-size:2rem;color:#fff;">A Nave Mãe foi destruída!</span>${pontuacao}`; }
@@ -817,13 +982,13 @@
         function g1_sendDir() {
             let dir = 'stop';
             if (keys.left && !keys.right) dir = 'left'; else if (keys.right && !keys.left) dir = 'right';
-            socket.emit('playerMovement', { dir });
+            RT.send('playerMovement', { dir });
         }
         window.addEventListener('keydown', (e) => {
             if (!inGame) return;
             if (e.key === 'ArrowLeft' || e.key === 'a') { if (!keys.left) { keys.left = true; g1_sendDir(); } }
             if (e.key === 'ArrowRight' || e.key === 'd') { if (!keys.right) { keys.right = true; g1_sendDir(); } }
-            if (e.key === ' ' || e.key === 'Enter') { socket.emit('shoot'); playShootSound(); }
+            if (e.key === ' ' || e.key === 'Enter') { RT.send('shoot'); playShootSound(); }
         });
         window.addEventListener('keyup', (e) => {
             if (!inGame) return;
@@ -880,14 +1045,14 @@
         let j2_keys = { left: false, right: false };
         window.addEventListener('keydown', (e) => {
             if (!j2_inGame) return;
-            if (e.key === 'ArrowLeft' || e.key === 'a') { if (!j2_keys.left) { j2_keys.left = true; socket.emit('acao', { tipo: 'mover', direcao: 'esquerda' }); } }
-            if (e.key === 'ArrowRight' || e.key === 'd') { if (!j2_keys.right) { j2_keys.right = true; socket.emit('acao', { tipo: 'mover', direcao: 'direita' }); } }
-            if (e.key === ' ') { socket.emit('acao', { tipo: 'atirar' }); playShootSound(); }
+            if (e.key === 'ArrowLeft' || e.key === 'a') { if (!j2_keys.left) { j2_keys.left = true; RT.send('acao', { tipo: 'mover', direcao: 'esquerda' }); } }
+            if (e.key === 'ArrowRight' || e.key === 'd') { if (!j2_keys.right) { j2_keys.right = true; RT.send('acao', { tipo: 'mover', direcao: 'direita' }); } }
+            if (e.key === ' ') { RT.send('acao', { tipo: 'atirar' }); playShootSound(); }
         });
         window.addEventListener('keyup', (e) => {
             if (!j2_inGame) return;
-            if (e.key === 'ArrowLeft' || e.key === 'a') { j2_keys.left = false; socket.emit('acao', { tipo: 'mover', direcao: j2_keys.right ? 'direita' : 'parar' }); }
-            if (e.key === 'ArrowRight' || e.key === 'd') { j2_keys.right = false; socket.emit('acao', { tipo: 'mover', direcao: j2_keys.left ? 'esquerda' : 'parar' }); }
+            if (e.key === 'ArrowLeft' || e.key === 'a') { j2_keys.left = false; RT.send('acao', { tipo: 'mover', direcao: j2_keys.right ? 'direita' : 'parar' }); }
+            if (e.key === 'ArrowRight' || e.key === 'd') { j2_keys.right = false; RT.send('acao', { tipo: 'mover', direcao: j2_keys.left ? 'esquerda' : 'parar' }); }
         });
 
         // ==========================================
@@ -940,7 +1105,7 @@
 
             if (j3_gameState.players) Object.values(j3_gameState.players).forEach(p => { if (p.isAlive) j3_drawTriangle(p.x, p.y, p.color, false); });
             if (j3_gameState.enemies) j3_gameState.enemies.forEach(e => {
-                if (e.type === 'batalha' || e.type === 'formacao') j3_drawTriangle(e.x, e.y, e.type === 'batalha' ? '#ff3333' : '#ffffff', true);
+                if (e.type === 'batalha') j3_drawTriangle(e.x, e.y, '#ff3333', true);
                 else if (e.type === 'tanque') j3_drawTank(e.x, e.y);
                 else if (e.type === 'mae') j3_drawMotherShip(e.x, e.y, e.hp, e.maxHp);
             });
@@ -958,13 +1123,13 @@
         function j3_sendDir() {
             let dir = 'stop';
             if (j3_keys.left && !j3_keys.right) dir = 'left'; else if (j3_keys.right && !j3_keys.left) dir = 'right';
-            socket.emit('j3_move', dir);
+            RT.send('j3_move', dir);
         }
         window.addEventListener('keydown', (e) => {
             if (!j3_inGame) return;
             if (e.key === 'ArrowLeft' || e.key === 'a') { if (!j3_keys.left) { j3_keys.left = true; j3_sendDir(); } }
             if (e.key === 'ArrowRight' || e.key === 'd') { if (!j3_keys.right) { j3_keys.right = true; j3_sendDir(); } }
-            if (e.key === ' ' || e.key === 'ArrowUp') { socket.emit('j3_shoot'); playShootSound(); }
+            if (e.key === ' ' || e.key === 'ArrowUp') { RT.send('j3_shoot'); playShootSound(); }
         });
         window.addEventListener('keyup', (e) => {
             if (!j3_inGame) return;

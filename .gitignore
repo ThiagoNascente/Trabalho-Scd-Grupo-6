@@ -4,6 +4,12 @@
 node_modules/
 npm-debug.log
 
+# Python (Score Service)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
 # Diretórios do .NET
 auth-service/bin/
 auth-service/obj/

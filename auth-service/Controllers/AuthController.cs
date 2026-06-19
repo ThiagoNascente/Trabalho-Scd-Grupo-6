@@ -77,7 +77,9 @@ public class AuthController : ControllerBase
     private string GenerateJwtToken(User user)
     {
         var jwtSettings = _config.GetSection("JwtSettings");
-        var secretKey = jwtSettings["Secret"] ?? "super_secret_key_that_should_be_long_enough_for_hmac_sha256_in_production";
+        // Segredo do JWT vem SEMPRE de variável de ambiente — sem default chumbado.
+        var secretKey = jwtSettings["Secret"]
+            ?? throw new InvalidOperationException("JWT secret não configurado. Defina JwtSettings__Secret (JWT_SECRET no .env / EC2).");
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 

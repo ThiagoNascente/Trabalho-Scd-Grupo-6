@@ -19,7 +19,10 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-var secretKey = jwtSettings["Secret"] ?? "super_secret_key_that_should_be_long_enough_for_hmac_sha256_in_production";
+// Segredo do JWT vem SEMPRE de variável de ambiente (JwtSettings__Secret / JWT_SECRET no .env).
+// Sem o segredo, a aplicação não sobe (falha explícita, sem default chumbado).
+var secretKey = jwtSettings["Secret"]
+    ?? throw new InvalidOperationException("JWT secret não configurado. Defina JwtSettings__Secret (JWT_SECRET no .env / EC2).");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
