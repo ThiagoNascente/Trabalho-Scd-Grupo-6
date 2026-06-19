@@ -1,4 +1,4 @@
-# CosmoDock
+# Spaceship
 
 _Game Design Document — v1.1 (atualizado pós-QA)_
 
@@ -354,7 +354,7 @@ Para evitar que o chefe surja repentinamente, a entrada segue um fluxo de fases 
 
 ## Arquitetura Técnica
 
-O CosmoDock adota uma arquitetura de microsserviços orientada a eventos (EDA) com servidor autoritativo. O cliente envia apenas inputs; toda a lógica de jogo reside no servidor.
+O Spaceship adota uma arquitetura de microsserviços orientada a eventos (EDA) com servidor autoritativo. O cliente envia apenas inputs; toda a lógica de jogo reside no servidor.
 
 ### Componentes
 

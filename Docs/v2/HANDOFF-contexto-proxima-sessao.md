@@ -1,4 +1,4 @@
-# HANDOFF — Contexto para a próxima sessão (CosmoDock / SCD 2026.1)
+# HANDOFF — Contexto para a próxima sessão (Spaceship / SCD 2026.1)
 
 **Última atualização:** 2026-06-19 (fim da sessão dos itens 4, 5 e 7) · **Entrega:** 28/06/2026
 **Para o próximo agente:** leia este arquivo primeiro. Ele resume o estado real do código e o que falta, para não precisar reler a conversa anterior.
@@ -104,13 +104,13 @@ auth-service-lite (Node/JSON, :5000)    — usado para DEV local SEM Docker (nã
 
 ## 3. Como rodar a stack LOCAL (DEV, sem Docker — Windows, Node v24)
 
-> Docker e .NET **não** estão disponíveis neste ambiente; por isso usamos a stack **lite** em Node. `JWT_SECRET` precisa ser o MESMO em todos. Valor usado nos testes: `dev-cosmodock-secret-troque-em-prod-32chars`.
+> Docker e .NET **não** estão disponíveis neste ambiente; por isso usamos a stack **lite** em Node. `JWT_SECRET` precisa ser o MESMO em todos. Valor usado nos testes: `dev-spaceship-secret-troque-em-prod-32chars`.
 
 6 processos (cada um em background). Caminhos absolutos para evitar problema de CWD do PowerShell:
 
 ```powershell
 # Auth (lite, :5000)
-$env:JWT_SECRET='dev-cosmodock-secret-troque-em-prod-32chars'; node 'CAMINHO\auth-service-lite\server.js'
+$env:JWT_SECRET='dev-spaceship-secret-troque-em-prod-32chars'; node 'CAMINHO\auth-service-lite\server.js'
 # Engines (Socket.io 4001-4003 + WebRTC 5001-5003)
 $env:GAME='jogo1'; $env:PORT='4001'; $env:JWT_SECRET='...'; $env:AUTH_API_URL='http://localhost:5000/api/auth'; node 'CAMINHO\game-engine\server.js'
 $env:GAME='jogo2'; $env:PORT='4002'; $env:JWT_SECRET='...'; node 'CAMINHO\game-engine\server.js'

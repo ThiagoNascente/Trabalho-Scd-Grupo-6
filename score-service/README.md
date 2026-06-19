@@ -1,6 +1,6 @@
 # Score Service (Python / Flask)
 
-Serviço de pontuação do CosmoDock (itens 4, 5 e 6 do Plano v2). É a **3ª linguagem**
+Serviço de pontuação do Spaceship (itens 4, 5 e 6 do Plano v2). É a **3ª linguagem**
 do projeto (Python, ao lado de C# no Auth e Node nos engines/gateway) e o ponto de
 **interação assíncrona / pub-sub** (Kafka).
 

@@ -1,6 +1,6 @@
 # Game Engine
 
-Processo independente que roda a **física de um** dos jogos do CosmoDock. A mesma
+Processo independente que roda a **física de um** dos jogos do Spaceship. A mesma
 imagem serve os três: a variável de ambiente `GAME` (`jogo1` | `jogo2` | `jogo3`)
 escolhe qual módulo de [`games/`](games/) é carregado. Rodar um engine por jogo
 concretiza o **Particionamento Funcional** (derrubar um engine não afeta os demais).

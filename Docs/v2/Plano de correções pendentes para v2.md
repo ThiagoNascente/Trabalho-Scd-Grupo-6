@@ -1,9 +1,10 @@
 # Plano de Correções Pendentes para a v2
 
-**Projeto:** CosmoDock — Jogo Online de Naves (Minigames 1, 2 e 3)
+**Projeto:** Spaceship — Jogo Online de Naves (Minigames 1, 2 e 3)
 **Data:** 2026-06-19
 **Base:** [Checklist de Requisitos da Especificação](../Requisitos%20do%20trabalho/Checklist%20de%20Requisitos%20da%20Especificação.md) · [relatorio_QA_v1.md](../v1/relatorio_QA_v1.md) · [QA_Status_v1.md](../v1/QA_Status_v1.md) · [Possiveis_problemas_v1.md](../v1/Possiveis_problemas_v1.md) · [GameDesignDocument.md](../GameDesignDocument.md) · [descrição da arquitetura.md](../Arquitetura/descrição%20da%20arquitetura.md) · [Arquitetura_code.md (mermaid)](../Arquitetura/Arquitetura_code.md)
 **Responsáveis:** Thiago e Vinícius (Programação) · Moisés (GDD) · Ana Liz (QA)
+**Acompanhamento:** o status vivo de cada item está no [Rastreio de Evolução](Rastreio%20de%20Evolução.md) (checklist operacional, atualizado a cada sessão). Este Plano guarda o **detalhe e o critério de aceite**; o Rastreio responde **"onde estamos agora"**.
 
 ---
 
@@ -119,7 +120,7 @@ Este é o **novo eixo central da v2**: sair do `docker-compose` único e colocar
 
 1. **Externalizar TODA a configuração de endereços** (continuação do trabalho do v1):
    - Cliente já lê `window.APP_CONFIG` ([frontend/config.js](../../frontend/config.js)); estender para o endereço do gateway/sinalização e para o engine retornado pelo matchmaking.
-   - Backend: cada serviço lê os endereços dos demais por **variável de ambiente** (ex.: `AUTH_API_URL`, `KAFKA_BROKER`, `REDIS_URL`, `PG_HOST`, `ENGINE_HOSTS`). Hoje só o gateway usa `AUTH_API_URL` ([game-gateway/index.js:14](../../game-gateway/index.js)). Ampliar e documentar no `.env.example`.
+   - Backend: cada serviço lê os endereços dos demais por **variável de ambiente** (ex.: `AUTH_API_URL`, `KAFKA_BROKER`, `REDIS_URL`, `PG_HOST`, `ENGINE_HOSTS`). Hoje o gateway usa `ENGINE1/2/3_URL`+`JWT_SECRET` ([game-gateway/index.js:23,31-35](../../game-gateway/index.js)) e os engines usam `AUTH_API_URL`+`KAFKA_BROKER` ([game-engine/server.js:28](../../game-engine/server.js)). Ampliar e documentar no `.env.example`.
 2. **Service discovery simples:** Route53 Private Hosted Zone (ex.: `auth.internal`, `kafka.internal`) **ou** IPs privados fixos em variáveis de ambiente. Sem k8s, basta um desses.
 3. **Security Groups** (substituem a rede do compose):
    - LB: 80/443 públicos.
@@ -139,7 +140,7 @@ Este é o **novo eixo central da v2**: sair do `docker-compose` único e colocar
 
 ## 4. Arquitetura distribuída real (engines, Kafka, Score, Redis, gRPC, leaderboard)
 
-Verificação de 2026-06-19: `grep -rn -i "kafka|redis|grpc"` no código-fonte (`.js`, `.cs`, `.csproj`, `package.json`) **não retorna nenhum uso** — apenas os contêineres no [docker-compose.yml](../../docker-compose.yml). Toda a física vive no [game-gateway/index.js](../../game-gateway/index.js).
+Verificação (atualizada após os itens 1/4/5): a **física saiu do gateway** e passou a viver nos [game-engine](../../game-engine/) (`games/jogo1|2|3.js`); **Kafka** e **Redis** deixaram de ser contêineres ociosos e passaram a ser usados ([game-engine/kafka.js](../../game-engine/kafka.js) publica; [score-service/](../../score-service/) consome e materializa o ranking). Um `grep -rn -i "grpc"` no código-fonte (`.js`, `.cs`, `.csproj`, `.py`) **ainda não retorna nenhum uso** — o **gRPC (item 8)** é a única peça desta seção que continua só no diagrama.
 
 ### 4.1 🔴 Game Engines isolados — `game-engine/` (item 1)
 
@@ -171,7 +172,7 @@ Verificação de 2026-06-19: `grep -rn -i "kafka|redis|grpc"` no código-fonte (
 
 ### 4.5 🟠 gRPC síncrono — validação de JWT (item 8)
 
-- **Situação:** o gateway valida o JWT **localmente** (`jwt.verify(token, JWT_SECRET, ...)`, [game-gateway/index.js:19](../../game-gateway/index.js)).
+- **Situação:** o gateway valida o JWT **localmente** (`jwt.verify(token, JWT_SECRET, ...)`, [game-gateway/index.js:47](../../game-gateway/index.js)); os engines também validam localmente ([game-engine/server.js:42](../../game-engine/server.js)).
 - **Entregar:** endpoint gRPC no Auth (C#) para validação de sessão, chamado pelo gateway na conexão/entrada de sala.
 - **Aceite:** revogar/expirar a sessão no Auth invalida novas conexões pelo gateway.
 
@@ -203,10 +204,10 @@ Verificação de 2026-06-19: `grep -rn -i "kafka|redis|grpc"` no código-fonte (
 
 ### 5.3 🟡 Regra de vitória do Jogo 1 diverge do GDD (9.3)
 
-- **Situação:** o código encerra com `p1Score >= 2 || p2Score >= 2` (primeiro a 2) — [game-gateway/index.js:309](../../game-gateway/index.js). O GDD descreve **"3 vitórias consecutivas"** e o código **não** zera a sequência ao perder um round.
+- **Situação:** o código encerrava com `p1Score >= 2 || p2Score >= 2` (primeiro a 2) — no gateway monolítico (antes do item 1). O GDD descreve **"3 vitórias consecutivas"** e o código **não** zerava a sequência ao perder um round.
 - **Entregar:** alinhar código e GDD (escolher a regra e implementá-la, incluindo reset de sequência se for "consecutivas").
 - **Aceite:** condição de vitória idêntica entre jogo e documento.
-- **✔ Concluído (v2):** implementadas **3 vitórias consecutivas** com reset da sequência do adversário (`ROUNDS_TO_WIN = 3`) em [game-gateway/index.js](../../game-gateway/index.js) (função `handleHit`), alinhado ao GDD (Minigame 1 — Duelo).
+- **✔ Concluído (v2):** implementadas **3 vitórias consecutivas** com reset da sequência do adversário (`ROUNDS_TO_WIN = 3`) em [game-engine/games/jogo1.js](../../game-engine/games/jogo1.js) (constante na linha 21; reset na função `handleHit`, linha 81), alinhado ao GDD (Minigame 1 — Duelo).
 
 ### 5.4 🟡 Remover manifestos k8s (9.4)
 
@@ -217,17 +218,17 @@ Verificação de 2026-06-19: `grep -rn -i "kafka|redis|grpc"` no código-fonte (
 
 ### 5.5 🟡 Código morto: inimigo `formacao` (9.5)
 
-- **Situação:** o tipo `formacao` é tratado/desenhado ([game-gateway/index.js:399](../../game-gateway/index.js), [frontend/index.html:943](../../frontend/index.html)) mas **nunca é gerado** — `j3_spawnEnemies` só cria `batalha`, `tanque` e `mae` ([index.js:469-470](../../game-gateway/index.js)). Os nomes internos divergem do GDD (Caçador/Destruidor/Leviatã).
+- **Situação:** o tipo `formacao` era tratado/desenhado no gateway monolítico (antes do item 1) mas **nunca era gerado** — `j3_spawnEnemies` só cria `batalha`, `tanque` e `mae`. Os nomes internos divergiam do GDD (Caçador/Destruidor/Leviatã).
 - **Entregar:** remover o tipo ou passar a gerá-lo; padronizar nomenclatura com o GDD.
 - **Aceite:** sem ramos de código inalcançáveis para tipos de inimigo.
-- **✔ Concluído (v2):** removido o tipo morto `formacao` em [game-gateway/index.js](../../game-gateway/index.js) (`j3_updateGameLogic`) e em [frontend/index.html](../../frontend/index.html) (`j3_gameLoop`); adicionado comentário mapeando os nomes internos ao GDD (`batalha`=Caçador, `tanque`=Destruidor, `mae`=Leviatã).
+- **✔ Concluído (v2):** removido o tipo morto `formacao` em [game-engine/games/jogo3.js](../../game-engine/games/jogo3.js) (`j3_updateGameLogic`/`j3_spawnEnemies`) e em [frontend/index.html](../../frontend/index.html) (`j3_gameLoop`); adicionado comentário mapeando os nomes internos ao GDD (`batalha`=Caçador, `tanque`=Destruidor, `mae`=Leviatã) em [game-engine/games/jogo3.js:6](../../game-engine/games/jogo3.js).
 
 ### 5.6 🟠 Segredos/credenciais por variável de ambiente (9.6)
 
 - **Situação:** o **mesmo** `JWT_SECRET` padrão está chumbado em [auth-service/Program.cs:22](../../auth-service/Program.cs), [auth-service/Controllers/AuthController.cs:80](../../auth-service/Controllers/AuthController.cs), [game-gateway/index.js:13](../../game-gateway/index.js) e [auth-service-lite/server.js:12](../../auth-service-lite/server.js); a senha do PostgreSQL é literal no compose. *(Isto não é sobre criptografar o tráfego — que está fora de escopo — e sim sobre não publicar segredos no código ao subir na AWS.)*
 - **Entregar:** segredo de JWT e credenciais por **variável de ambiente** em cada EC2 (item 3.3).
 - **Aceite:** subir em produção sem a variável definida **falha de forma explícita** (não cai no segredo default).
-- **✔ Concluído (v2):** removido o segredo default de [Program.cs:22](../../auth-service/Program.cs), [AuthController.cs:80](../../auth-service/Controllers/AuthController.cs), [game-gateway/index.js:13](../../game-gateway/index.js) e [auth-service-lite/server.js:12](../../auth-service-lite/server.js) — cada serviço **aborta** sem o segredo. O [docker-compose.yml](../../docker-compose.yml) injeta `JWT_SECRET` (Auth via `JwtSettings__Secret`, Gateway via `JWT_SECRET`) e `POSTGRES_PASSWORD` a partir do `.env` usando `${VAR:?}` (falha se ausente); a senha do Postgres saiu do compose.
+- **✔ Concluído (v2):** removido o segredo default de [Program.cs:22](../../auth-service/Program.cs), [AuthController.cs:80](../../auth-service/Controllers/AuthController.cs), [game-gateway/index.js:23](../../game-gateway/index.js), [auth-service-lite/server.js:13](../../auth-service-lite/server.js) e no novo [game-engine/server.js:23](../../game-engine/server.js) — cada serviço **aborta** sem o segredo. O [docker-compose.yml](../../docker-compose.yml) injeta `JWT_SECRET` (Auth via `JwtSettings__Secret`, Gateway via `JWT_SECRET`) e `POSTGRES_PASSWORD` a partir do `.env` usando `${VAR:?}` (falha se ausente); a senha do Postgres saiu do compose.
 
 ### 5.7 🟡 Guia de deploy e links da doc (9.7)
 

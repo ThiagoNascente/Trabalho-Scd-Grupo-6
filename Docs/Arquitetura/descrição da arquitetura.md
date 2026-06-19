@@ -1,4 +1,4 @@
-## Descrição do CosmoDock
+## Descrição do Spaceship
 
 A solução adota uma Arquitetura Baseada em Microsserviços e Orientada a Eventos (EDA), sendo fragmentado em componentes especialistas que utilizam diferentes modelos de concorrência e se comunicam por múltiplos protocolos. O fluxo de jogo adota o padrão de Servidor Autoritativo, onde o cliente web apenas envia comandos de entrada (teclado/mouse) e renderiza o estado visual, enquanto o servidor valida e processa toda a lógica de jogo, colisões e pontuação.
    

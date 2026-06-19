@@ -2,9 +2,10 @@
 
 **Disciplina:** Software Concorrente e Distribuído — Prof. Fábio Moreira Costa
 **Especificação:** [SCD-2026-1-EspecificaçãoTrabalhoFinal.pdf](SCD-2026-1-EspecificaçãoTrabalhoFinal.pdf)
-**Cenário escolhido:** Exemplo **3 — Jogo online multijogador** (CosmoDock)
+**Cenário escolhido:** Exemplo **3 — Jogo online multijogador** (Spaceship)
 **Data desta verificação:** 2026-06-19 · **Entrega:** 28/06/2026
 **Plano de trabalho associado:** [Plano de correções pendentes para v2](../v2/Plano%20de%20correções%20pendentes%20para%20v2.md)
+**Rastreio operacional:** [Rastreio de Evolução](../v2/Rastreio%20de%20Evolução.md) — checklist vivo do progresso da v2 (atualizado a cada sessão; é a fonte do "onde estamos agora").
 
 > Legenda: `[x]` cumprido · `[ ]` ainda falta elaborar.
 > Status detalhado: ✅ feito · 🟡 parcial (cumpre o mínimo, falta reforço) · ⛔ não atendido.

@@ -1,7 +1,7 @@
 # Relatório de QA & Planejamento de Ciclo de Testes
 **QA:** Ana liz
 
-**Projeto:** Jogo Online de Naves (Jogos 1, 2 e 3), CosmoDock 
+**Projeto:** Jogo Online de Naves (Jogos 1, 2 e 3), Spaceship 
 
 **Responsáveis pela Atualização do Projeto:** Thiago, Vinícius e Moisés 
 
