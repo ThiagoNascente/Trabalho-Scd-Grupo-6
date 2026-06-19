@@ -1,0 +1,292 @@
+# Plano de Correções Pendentes para a v2
+
+**Projeto:** CosmoDock — Jogo Online de Naves (Minigames 1, 2 e 3)
+**Data:** 2026-06-19
+**Base:** [Checklist de Requisitos da Especificação](../Requisitos/Checklist%20de%20Requisitos%20da%20Especificação.md) · [relatorio_QA_v1.md](../v1/relatorio_QA_v1.md) · [QA_Status_v1.md](../v1/QA_Status_v1.md) · [Possiveis_problemas_v1.md](../v1/Possiveis_problemas_v1.md) · [GameDesignDocument.md](../GameDesignDocument.md) · [descrição da arquitetura.md](../Arquitetura/descrição%20da%20arquitetura.md) · [Arquitetura_code.md (mermaid)](../Arquitetura/Arquitetura_code.md)
+**Responsáveis:** Thiago e Vinícius (Programação) · Moisés (GDD) · Ana Liz (QA)
+
+---
+
+## Propósito deste documento
+
+O ciclo v1 fechou **todos os bugs de UI/UX e de consistência de gameplay** apontados pelo QA (seções 1 e 2 do relatório). O que **ainda falta** para o projeto contemplar a **v2** é, em essência:
+
+1. **Transformar a arquitetura distribuída documentada em arquitetura real** (engines isolados, Kafka, Redis, Score Service, gRPC, leaderboard).
+2. **Distribuir o sistema na AWS com uma instância EC2 por serviço e balanceamento de carga** — *sem* Kubernetes/orquestrador.
+3. **Migrar o transporte de tempo real de WebSockets para WebRTC** para reduzir o input lag.
+4. Fechar dívidas técnicas pontuais de código × documentação.
+
+### Decisões de escopo desta revisão (importante)
+
+- **Criptografia entre serviços está FORA do escopo.** Decidiu-se que o modelo atual de comunicação (HTTP/WS em texto puro dentro da rede da aplicação) **é suficiente** para os objetivos do projeto. Os itens de TLS/HTTPS/WSS da revisão anterior foram **removidos** deste plano.
+- **Kubernetes está FORA do escopo.** A distribuição será feita com **EC2 dedicada por serviço + Load Balancer**, não com orquestração de contêineres. Os manifestos em `k8s/` ficam **obsoletos** (ver item 5.4).
+- **WebRTC é decisão firmada** (não é mais só uma "prova de conceito"): substitui o WebSockets como canal de jogo em tempo real.
+
+> **Legenda de prioridade:** 🔴 Crítico (bloqueia a definição de "v2") · 🟠 Alto · 🟡 Médio.
+> **Legenda de esforço:** ◐ baixo · ◑ médio · ● alto.
+
+---
+
+## Quadro-resumo dos pendentes
+
+| # | Pendência | Origem | Prio | Esforço |
+|---|---|---|---|---|
+| 1 | Game Engines isolados — não existem (monólito no gateway) | QA §3 / Arquitetura | 🔴 | ● |
+| 2 | Migração WebSockets → **WebRTC** (canal de jogo) | QA §3 / decisão v2 | 🔴 | ● |
+| 3 | **Distribuição na AWS: 1 serviço por EC2 + Load Balancer** | Possiveis_problemas / decisão v2 | 🔴 | ● |
+| 4 | Apache Kafka — sobe mas ninguém publica/consome | QA §3 / Arquitetura | 🔴 | ◑ |
+| 5 | Score Service (Python/Flask) — não existe | QA §3 / Arquitetura | 🔴 | ● |
+| 6 | Redis — sobe mas não há cache/leaderboard | QA §3 / Arquitetura | 🟠 | ◑ |
+| 7 | Leaderboard global (frontend + backend) — não existe | GDD / Possiveis_problemas | 🔴 | ◑ |
+| 8 | gRPC síncrono p/ validação de JWT — não existe | Arquitetura | 🟠 | ◑ |
+| 9.1 | Validação de usuário/senha (4–30) no servidor C# | Possiveis_problemas | 🟠 | ◐ |
+| 9.2 | Unificar/decidir o serviço de auth (C# × lite Node) | Revisão v2 | 🟠 | ◐ |
+| 9.3 | Regra de vitória do Jogo 1 diverge do GDD | Revisão v1 (E2) | 🟡 | ◐ |
+| 9.4 | Remover manifestos k8s (fora de escopo agora) | Decisão v2 | 🟡 | ◐ |
+| 9.5 | Código morto: inimigo `formacao` | Revisão v1 (E3) | 🟡 | ◐ |
+| 9.6 | Segredos/credenciais por variável de ambiente (deploy AWS) | Deploy | 🟠 | ◐ |
+| 9.7 | Guia de deploy removido / links quebrados na doc | Revisão v2 | 🟡 | ◐ |
+| 10 | Replicação do PostgreSQL (Primary-Replica) | QA §3 / Arquitetura | 🟠 | ◑ |
+| 11 | Particionamento de dados | QA §3 / Arquitetura | 🟡 | ◑ |
+| 12 | Bateria de testes na AWS EC2 | QA §4 | 🟠 | ◑ |
+
+> Itens **removidos** em relação à revisão anterior: *Criptografia/TLS de todas as comunicações* e *WebRTC como PoC* (agora é migração efetiva, item 2). O bug de `targetPort` do k8s some porque os manifestos k8s serão descartados (item 5.4).
+
+---
+
+## 1. Conformidade com a arquitetura em mermaid
+
+Comparação entre **o que está sendo construído** e o diagrama de referência ([Arquitetura_code.md](../Arquitetura/Arquitetura_code.md), já atualizado nesta revisão):
+
+| Elemento do diagrama | Estado atual no código | Conformidade |
+|---|---|---|
+| Cliente ↔ servidor por **WebRTC** (canal de jogo) | Hoje é **WebSockets/Socket.io** | ⛔ Divergente → **migrar** (item 2). O mermaid já foi atualizado para WebRTC. |
+| Sinalização/lobby via WS + REST | Existe (Socket.io + REST no Auth) | ✅ |
+| **1 serviço por EC2 + Load Balancer** | Tudo roda junto via `docker-compose`; sem deploy AWS | ⛔ → **distribuir** (item 3) |
+| **Game Engines** (1 por jogo) | Física dos 3 jogos é **monólito** no gateway | ⛔ → **isolar** (item 1) |
+| Gateway valida JWT via **gRPC** ao Auth | Validação **local** com a chave compartilhada | ⛔ → item 8 |
+| Engine → **Kafka** → Score | Kafka sobe, **ninguém usa**; gateway grava win via REST | ⛔ → itens 4 e 5 |
+| **Redis** (cache leaderboard) | Sobe, **sem uso** | ⛔ → item 6 |
+| **Leaderboard** por minigame | Não existe (só contador `Wins`) | ⛔ → item 7 |
+| PostgreSQL Primary-Réplica | Instância única | ⛔ → item 10 |
+
+> **Conclusão:** a arquitetura-alvo do mermaid está **correta como destino**, mas o código atual ainda é, na prática, um **monólito sobre WebSockets**. A v2 é exatamente o trabalho de fazer o código convergir para o diagrama, com duas mudanças de rumo desta revisão já aplicadas ao diagrama: **WebRTC** no lugar de WebSockets e **EC2-por-serviço sem Kubernetes**.
+
+---
+
+## 2. Migração WebSockets → WebRTC (canal de jogo)  🔴 ● — item 2
+
+- **Situação:** todo o tráfego de jogo passa por Socket.io/WebSockets ([game-gateway/index.js:1-24](../../game-gateway/index.js); cliente em [frontend/index.html](../../frontend/index.html)). WebSocket é TCP — sujeito a head-of-line blocking, o que agrava o input lag relatado no QA.
+- **Entregar:**
+  - **Canal de jogo (inputs do cliente + estado do servidor) via WebRTC DataChannel** em modo *unreliable/unordered* (UDP), trocando o `socket.emit('playerMovement'/'shoot')` e o `gameUpdate` por mensagens no DataChannel.
+  - Manter **WebSocket/REST apenas para login, lobby e sinalização** (troca de SDP/ICE para abrir o DataChannel).
+  - No servidor, usar uma lib de WebRTC para Node (ex.: `node-datachannel` / `werift` / `geckos.io`, que já encapsula servidor de jogo UDP + sinalização).
+  - Prever **STUN** (e **TURN** como fallback de NAT) — em EC2 com IP público, STUN costuma bastar (ver item 3).
+- **Conformidade:** alinha o código ao mermaid (que agora mostra `WebRTC DataChannel` direto cliente ↔ engine).
+- **Aceite:** uma partida roda inteiramente sobre WebRTC; medição de latência mostra redução vs WebSockets (registrar números — substitui a antiga "PoC").
+
+---
+
+## 3. Distribuição na AWS — 1 serviço por EC2 + balanceamento  🔴 ● — item 3
+
+Este é o **novo eixo central da v2**: sair do `docker-compose` único e colocar **cada serviço em sua própria instância EC2**, com balanceamento de carga, **sem Kubernetes**.
+
+### 3.1 Topologia de instâncias (1 serviço por EC2)
+
+| Instância EC2 | Serviço | Porta | Exposição |
+|---|---|---|---|
+| `ec2-frontend` | Frontend estático (Nginx) | 80 | Pública (via LB) |
+| `ec2-auth` | Auth Service (C#) | 5000 | Interna (via LB rota `/api/auth`) |
+| `ec2-gateway` | Gateway / Lobby / Sinalização (Node) | 3000 | Pública (via LB; WS de sinalização) |
+| `ec2-engine-1` | Game Engine Jogo 1 (Node + WebRTC) | UDP* | Pública (WebRTC direto) |
+| `ec2-engine-2` | Game Engine Jogo 2 (Node + WebRTC) | UDP* | Pública (WebRTC direto) |
+| `ec2-engine-3` | Game Engine Jogo 3 (Node + WebRTC) | UDP* | Pública (WebRTC direto) |
+| `ec2-score` | Score Service (Python) | 8000 | Interna (via LB rota `/api/scores`) |
+| `ec2-postgres` | PostgreSQL (Primary; réplica no item 10) | 5432 | Interna |
+| `ec2-redis` | Redis | 6379 | Interna |
+| `ec2-kafka` | Kafka + Zookeeper | 9092 | Interna |
+
+\* *Faixa de portas UDP/ICE do WebRTC liberada no Security Group do engine.*
+
+### 3.2 Balanceamento de carga
+
+- **Load Balancer (ALB) para HTTP/REST e sinalização:** roteia por caminho — `/` → frontend, `/api/auth` → auth, `/ws/lobby` → gateway, `/api/scores` → score. **Health checks** por target group.
+- **Tráfego de jogo (WebRTC/UDP) NÃO passa pelo ALB:** o ALB é L7/HTTP. O **balanceamento das partidas** acontece no **matchmaking**: o gateway escolhe qual `ec2-engine-N` hospeda a sala (por jogo e por carga) e devolve ao cliente o endereço daquela EC2; o cliente abre o WebRTC **direto** com ela. Isso atende ao requisito de "balancear a carga" e ao item de *divisão de servidores para salas abertas* do QA §3.
+- Para múltiplas instâncias do **mesmo** jogo no futuro, o gateway mantém um registro de engines disponíveis e distribui salas entre elas (round-robin / por nº de salas ativas).
+
+### 3.3 Preparativos para rodar na AWS (o que codar/configurar)
+
+1. **Externalizar TODA a configuração de endereços** (continuação do trabalho do v1):
+   - Cliente já lê `window.APP_CONFIG` ([frontend/config.js](../../frontend/config.js)); estender para o endereço do gateway/sinalização e para o engine retornado pelo matchmaking.
+   - Backend: cada serviço lê os endereços dos demais por **variável de ambiente** (ex.: `AUTH_API_URL`, `KAFKA_BROKER`, `REDIS_URL`, `PG_HOST`, `ENGINE_HOSTS`). Hoje só o gateway usa `AUTH_API_URL` ([game-gateway/index.js:14](../../game-gateway/index.js)). Ampliar e documentar no `.env.example`.
+2. **Service discovery simples:** Route53 Private Hosted Zone (ex.: `auth.internal`, `kafka.internal`) **ou** IPs privados fixos em variáveis de ambiente. Sem k8s, basta um desses.
+3. **Security Groups** (substituem a rede do compose):
+   - LB: 80/443 públicos.
+   - Engines: faixa UDP/ICE pública (WebRTC) + porta de sinalização.
+   - Auth/Score/Postgres/Redis/Kafka: portas abertas **apenas** para os SGs dos serviços que os consomem (rede privada da VPC).
+4. **Empacotamento e execução por instância:** manter o `Dockerfile` de cada serviço e rodar `docker run` na sua EC2 (ou AMI por serviço). **Sem `docker-compose` em produção** — o compose continua só para desenvolvimento local.
+5. **Inicialização:** `user-data` / script de bootstrap por instância (instala Docker, baixa a imagem, sobe o contêiner com as env vars).
+6. **Guia de deploy AWS** atualizado (item 5.7), passo a passo por instância.
+
+### 3.4 Aceite
+
+- Cada serviço roda em uma EC2 distinta; derrubar uma EC2 de engine não afeta os demais jogos.
+- Login, lobby e leaderboard chegam via Load Balancer; a partida conecta via WebRTC direto ao engine atribuído pelo matchmaking.
+- Nenhuma porta/endereço chumbado no código — tudo por env/`config.js`.
+
+---
+
+## 4. Arquitetura distribuída real (engines, Kafka, Score, Redis, gRPC, leaderboard)
+
+Verificação de 2026-06-19: `grep -rn -i "kafka|redis|grpc"` no código-fonte (`.js`, `.cs`, `.csproj`, `package.json`) **não retorna nenhum uso** — apenas os contêineres no [docker-compose.yml](../../docker-compose.yml). Toda a física vive no [game-gateway/index.js](../../game-gateway/index.js).
+
+### 4.1 🔴 Game Engines isolados — `game-engine/` (item 1)
+
+- **Situação:** stub ([game-engine/README.md](../../game-engine/README.md)); lógica dos 3 jogos dentro do gateway.
+- **Entregar:** extrair os loops de física (Jogo 1/2/3) para **processos/serviços independentes** (Node.js), cada um na sua EC2 (item 3). O gateway passa a só fazer lobby + sinalização. Cada engine termina hospedando o servidor WebRTC da sala (item 2).
+- **Aceite:** derrubar o engine do Jogo 1 não afeta partidas dos Jogos 2 e 3 (Particionamento Funcional real).
+
+### 4.2 🔴 Apache Kafka — produtor/consumidor (item 4)
+
+- **Situação:** Kafka + Zookeeper sobem; **ninguém publica/consome**.
+- **Entregar:** cada Engine publica `match-completed` ao fim da partida (`kafkajs`); Score Service consome (cliente Kafka Python).
+- **Aceite:** com o Score Service **parado**, encerrar partidas **não perde** pontuação — ao subir o serviço, os eventos retidos são processados (Consistência Eventual).
+
+### 4.3 🔴 Score Service (Python/Flask) — `score-service/` (item 5)
+
+- **Situação:** stub ([score-service/README.md](../../score-service/README.md)); o gateway grava win via REST no Auth ([game-gateway/index.js:76](../../game-gateway/index.js)).
+- **Entregar:** serviço Python que consome `match-completed`, atualiza ranking no **Redis**, persiste no PostgreSQL e expõe `GET /api/scores` para o leaderboard.
+- **Aceite:** fim de partida grava pontuação **sem** o gateway chamar o Auth diretamente.
+
+### 4.4 🟠 Redis — cache do leaderboard (item 6)
+
+- **Situação:** contêiner sobe; **sem uso**.
+- **Entregar:** ranking por minigame em Redis (sorted set), alimentado pelo Score Service.
+- **Aceite:** a leitura do leaderboard vem do Redis, não de varredura no PostgreSQL.
+
+### 4.5 🟠 gRPC síncrono — validação de JWT (item 8)
+
+- **Situação:** o gateway valida o JWT **localmente** (`jwt.verify(token, JWT_SECRET, ...)`, [game-gateway/index.js:19](../../game-gateway/index.js)).
+- **Entregar:** endpoint gRPC no Auth (C#) para validação de sessão, chamado pelo gateway na conexão/entrada de sala.
+- **Aceite:** revogar/expirar a sessão no Auth invalida novas conexões pelo gateway.
+
+### 4.6 🔴 Leaderboard global (item 7)
+
+- **Situação:** o GDD prevê "Ranking global por minigame" ([GameDesignDocument.md](../GameDesignDocument.md)), mas **não há leaderboard** no frontend nem no backend. `grep -i "leaderboard|ranking"` em [frontend/index.html](../../frontend/index.html) **não retorna nada**; o backend só guarda um contador `Wins` ([auth-service/Models/User.cs](../../auth-service/Models/User.cs)).
+- **Entregar:** pontuação **por minigame** (não só "vitórias"); tela de leaderboard com acesso no dashboard (nome, pontuação, data), servida pelo Score Service.
+- **Aceite:** após uma partida, a pontuação obtida aparece no ranking do respectivo minigame.
+
+> **Nota:** o requisito de [Possiveis_problemas_v1.md](../v1/Possiveis_problemas_v1.md) — *"a pontuação de cada jogo deve ser salva permanentemente ao perfil"* — hoje é cumprido só parcialmente (contador `Wins` agregado, sem pontuação por jogo).
+
+---
+
+## 5. Dívida técnica e consistência de código (item 9)
+
+### 5.1 🟠 Validação de usuário/senha (4–30) no servidor canônico (9.1)
+
+- **Situação:** o requisito de tamanho (4–30 caracteres, [Possiveis_problemas_v1.md](../v1/Possiveis_problemas_v1.md)) é validado **no cliente** ([frontend/index.html:606-607](../../frontend/index.html)) e no **auth-service-lite** ([server.js:31-32](../../auth-service-lite/server.js)), mas **não** no `auth-service` C# usado no [docker-compose.yml](../../docker-compose.yml). `AuthController.Register` ([AuthController.cs:25](../../auth-service/Controllers/AuthController.cs)) aceita qualquer tamanho → validação **burlável** por chamada direta à API.
+- **Entregar:** validação server-side (DataAnnotations no `UserDto` ou checagem no controller).
+- **Aceite:** `POST /api/auth/register` fora de 4–30 retorna `400` mesmo sem passar pelo frontend.
+
+### 5.2 🟠 Decidir o serviço de auth canônico (9.2)
+
+- **Situação:** coexistem `auth-service` (C# + PostgreSQL + **BCrypt**, usado no compose) e `auth-service-lite` (Node + JSON + **SHA-256 sem salt**, fora do compose). Regras divergentes (só o lite valida tamanho) e segurança diferente.
+- **Entregar:** definir um como oficial; se o lite for só para dev sem Docker, documentar e alinhar validações; senão, removê-lo.
+- **Aceite:** uma única fonte de verdade de autenticação.
+
+### 5.3 🟡 Regra de vitória do Jogo 1 diverge do GDD (9.3)
+
+- **Situação:** o código encerra com `p1Score >= 2 || p2Score >= 2` (primeiro a 2) — [game-gateway/index.js:309](../../game-gateway/index.js). O GDD descreve **"3 vitórias consecutivas"** e o código **não** zera a sequência ao perder um round.
+- **Entregar:** alinhar código e GDD (escolher a regra e implementá-la, incluindo reset de sequência se for "consecutivas").
+- **Aceite:** condição de vitória idêntica entre jogo e documento.
+
+### 5.4 🟡 Remover manifestos k8s (9.4)
+
+- **Situação:** existe `k8s/` (deployment-auth/gateway/frontend, postgres-statefulset). Como Kubernetes saiu do escopo (decisão v2), esses arquivos viram código morto de infraestrutura — e ainda contêm o bug de `targetPort: 8080` × app na 5000 ([k8s/deployment-auth.yaml](../../k8s/deployment-auth.yaml) × [Program.cs:75](../../auth-service/Program.cs)), que deixa de importar.
+- **Entregar:** **remover a pasta `k8s/`** e qualquer referência a ela na documentação.
+- **Aceite:** o repositório não contém mais manifestos de orquestração; a distribuição é descrita só via EC2 (item 3).
+
+### 5.5 🟡 Código morto: inimigo `formacao` (9.5)
+
+- **Situação:** o tipo `formacao` é tratado/desenhado ([game-gateway/index.js:399](../../game-gateway/index.js), [frontend/index.html:943](../../frontend/index.html)) mas **nunca é gerado** — `j3_spawnEnemies` só cria `batalha`, `tanque` e `mae` ([index.js:469-470](../../game-gateway/index.js)). Os nomes internos divergem do GDD (Caçador/Destruidor/Leviatã).
+- **Entregar:** remover o tipo ou passar a gerá-lo; padronizar nomenclatura com o GDD.
+- **Aceite:** sem ramos de código inalcançáveis para tipos de inimigo.
+
+### 5.6 🟠 Segredos/credenciais por variável de ambiente (9.6)
+
+- **Situação:** o **mesmo** `JWT_SECRET` padrão está chumbado em [auth-service/Program.cs:22](../../auth-service/Program.cs), [auth-service/Controllers/AuthController.cs:80](../../auth-service/Controllers/AuthController.cs), [game-gateway/index.js:13](../../game-gateway/index.js) e [auth-service-lite/server.js:12](../../auth-service-lite/server.js); a senha do PostgreSQL é literal no compose. *(Isto não é sobre criptografar o tráfego — que está fora de escopo — e sim sobre não publicar segredos no código ao subir na AWS.)*
+- **Entregar:** segredo de JWT e credenciais por **variável de ambiente** em cada EC2 (item 3.3).
+- **Aceite:** subir em produção sem a variável definida **falha de forma explícita** (não cai no segredo default).
+
+### 5.7 🟡 Guia de deploy e links da doc (9.7)
+
+- **Situação:** o `QA_Status_v1.md` referenciava `DEPLOYMENT_GUIDE.md` (removido) e caminhos antigos; a doc foi reorganizada (`Docs/v1`, `Docs/v2`).
+- **Entregar:** **novo guia de deploy AWS** (passo a passo do item 3) e correção dos links relativos.
+- **Aceite:** todos os links da pasta `Docs/` resolvem.
+
+---
+
+## 6. Escalabilidade de dados e testes em nuvem
+
+### 6.1 🟠 Replicação do PostgreSQL (Primary-Replica) (item 10)
+
+- **Situação:** instância única.
+- **Entregar:** topologia Primary-Replica (escritas no primário, leituras de leaderboard nas réplicas) — uma EC2 primária e uma réplica (item 3).
+- **Aceite:** leituras do ranking servidas por réplica sem onerar o primário.
+
+### 6.2 🟡 Particionamento de dados (item 11)
+
+- **Situação:** só há particionamento **funcional** lógico dos 3 jogos.
+- **Entregar:** particionar as tabelas de pontuação (ex.: por minigame).
+- **Aceite:** consultas de ranking por minigame atingem só a partição relevante.
+
+### 6.3 🟠 Bateria de testes na AWS EC2 (item 12)
+
+- **Situação:** depende do deploy (item 3); ainda não executada.
+- **Entregar:** após o deploy distribuído, nova bateria de testes de rede, latência (WebRTC), replicação, retenção do Kafka e estresse.
+- **Aceite:** relatório de testes em produção (incluindo derrubar uma EC2 de engine e uma réplica de banco).
+
+---
+
+## 7. Ordem de execução sugerida para a v2
+
+1. **Correções rápidas (◐):** itens 9.1, 9.3, 9.4 (remover k8s), 9.5, 9.6, 9.7 — baixo esforço, limpam o terreno.
+2. **Eixo distribuído (●):** item 1 (isolar Game Engines) → item 2 (WebRTC nos engines) → itens 4 e 5 (Kafka + Score Service) → item 6 (Redis) → item 7 (Leaderboard).
+3. **Validação síncrona (◑):** item 8 (gRPC).
+4. **Distribuição AWS (●):** item 3 (1 EC2 por serviço + Load Balancer + matchmaking que balanceia engines) → item 10 (replicação) → item 11 (particionamento).
+5. **Validação final (◑):** item 12 (bateria de testes na AWS).
+
+---
+
+## 8. Definição de "Pronto para v2"
+
+### 8.1 Técnico (arquitetura e código)
+
+- [ ] Os 3 jogos rodam em **engines isolados**, cada um em sua **EC2** (itens 1, 3).
+- [ ] O canal de jogo usa **WebRTC**; WS/REST só para lobby/sinalização/login (item 2).
+- [ ] **Cada serviço em uma EC2 distinta**, com **Load Balancer** para HTTP/sinalização e **matchmaking** distribuindo as partidas entre engines (item 3).
+- [ ] Fim de partida flui por **Kafka → Score Service → Redis/PostgreSQL**, com tolerância a falha comprovada (itens 4, 5, 6).
+- [ ] Existe **leaderboard global por minigame** ponta a ponta (item 7).
+- [ ] Validação de JWT via **gRPC** ao Auth (item 8).
+- [ ] Validações de usuário/senha **server-side** no auth canônico; segredos por variável de ambiente (itens 9.1, 9.2, 9.6).
+- [ ] Sem manifestos k8s, sem código morto, sem divergência código×GDD, links da doc válidos (itens 9.3, 9.4, 9.5, 9.7).
+- [ ] PostgreSQL com **replicação** e **particionamento** (itens 10, 11).
+
+### 8.2 Conformidade com a especificação do trabalho
+
+> Espelha o [Checklist de Requisitos da Especificação](../Requisitos/Checklist%20de%20Requisitos%20da%20Especificação.md). Os itens técnicos acima já cobrem as características obrigatórias (1.x), os paradigmas async/pub-sub (2.3, 2.4) e a 3ª linguagem (Python no Score). Faltam, além deles, os **entregáveis de demonstração**:
+
+- [ ] **Serviço acessível na Internet** via deploy público na AWS (req. 1.1 → item 3).
+- [ ] **Interação síncrona (gRPC)** + **assíncrona/messaging (Kafka)** demonstráveis (reqs. 1.5, 2.3, 2.4 → itens 8, 4, 5).
+- [ ] **Replicação e particionamento** de dados exercitados na demo (reqs. 1.6, 1.7 → itens 10, 11).
+- [ ] **Clientes simulados** (bots/script de carga) para exercitar concorrência sistematicamente (req. 4.2).
+- [ ] **Cenário de demonstração** roteirizado, cobrindo concorrência, sync/async, replicação, particionamento e tolerância a falhas (req. 4.3).
+- [ ] **Demonstração executada na AWS EC2** (req. 4.4 → itens 3, 12).
+- [ ] **Documentação de arquitetura e implementação** atualizada para a versão final (req. 4.6).
+- [ ] **README** atualizado para o deploy distribuído (req. 4.7 → item 9.7).
+- [ ] **Dados de teste** versionados (req. 4.8).
+- [ ] **Vídeo de demonstração** com participação de todos os integrantes (req. 4.9).
+
+> Fora de escopo nesta versão (por decisão): criptografia do tráfego entre serviços (TLS/HTTPS/WSS) e orquestração via Kubernetes.
+>
+> **Prazo de entrega: 28/06/2026** (código via GitHub Classroom; documentação e vídeo via Plataforma Turing).

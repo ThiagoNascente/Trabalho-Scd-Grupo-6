@@ -8,7 +8,7 @@ A solução adota uma Arquitetura Baseada em Microsserviços e Orientada a Event
 
 **Responsabilidade**: Apresentar a interface de login/registro, o menu de seleção dos 3 tipos de jogos e renderizar a partida em tempo real.
 
-**Mecanismo de Concorrência**: Event-driven no navegador (manipulação assíncrona de eventos de teclado e rede via WebSockets).
+**Mecanismo de Concorrência**: Event-driven no navegador (manipulação assíncrona de eventos de teclado e de rede). O fluxo de jogo em tempo real usa **WebRTC DataChannels** (transporte UDP de baixa latência), enquanto a sinalização inicial da sessão e o lobby usam WebSocket/HTTP.
 
 ### Serviço de Autenticação e Usuários (Auth Service)
 
@@ -20,9 +20,9 @@ A solução adota uma Arquitetura Baseada em Microsserviços e Orientada a Event
 
 ### Gateway de Conexão e Sala de Espera (Game Gateway & Lobby)
 
-**Tecnologias**: Node.js, Socket.io (WebSockets).
+**Tecnologias**: Node.js, Socket.io (lobby) e **servidor de sinalização WebRTC**.
 
-**Responsabilidade**: Atuar como o ponto único de entrada para conexões persistentes bidirecionais com os clientes. Realiza a validação inicial do token JWT e gerencia o matchmaking (salas de espera). Ele não processa a física do jogo; apenas roteia de forma eficiente os inputs dos jogadores para os motores de jogo correspondentes.
+**Responsabilidade**: Atuar como o ponto de entrada para o lobby e o matchmaking (salas de espera) e realizar a validação do token JWT. Ele não processa a física do jogo: faz a **sinalização** que estabelece a conexão WebRTC entre o cliente e o **Game Engine** responsável pela sala. Após a negociação, o tráfego de jogo em tempo real trafega **diretamente** entre cliente e engine via WebRTC DataChannel, sem passar pelo gateway.
 
 **Mecanismo de Concorrência**: Modelo de I/O Não-Bloqueante baseado em Single-Threaded Event Loop, ideal para lidar com milhares de conexões WebSockets simultâneas sem sobrecarga de memória por thread.
 
@@ -52,7 +52,7 @@ A solução adota uma Arquitetura Baseada em Microsserviços e Orientada a Event
 
 O sistema demonstra a convivência de três paradigmas distintos de comunicação distribuída:
 
-**Cliente-Servidor** Clássico (REST & WebSockets): Utilizado na comunicação do navegador com o ecossistema. REST (HTTP/S) é empregado para ações síncronas de ciclo curto (Login, Registro, Consulta ao Leaderboard). WebSockets (Socket.io) estabelece o canal full-duplex de baixa latência para o fluxo contínuo de dados do jogo em execução.
+**Cliente-Servidor** Clássico (REST) e **Tempo Real (WebRTC)**: Utilizado na comunicação do navegador com o ecossistema. REST (HTTP) é empregado para ações síncronas de ciclo curto (Login, Registro, Consulta ao Leaderboard) e WebSocket é usado para o lobby e a **sinalização**. O fluxo contínuo de dados do jogo em execução trafega por **WebRTC DataChannels** (UDP), estabelecidos diretamente entre o cliente e o Game Engine da sala para minimizar a latência/input lag.
 
 **Chamada de Procedimento Remoto** (gRPC síncrono): Quando um cliente tenta se conectar ao Game Gateway via WebSocket, o Gateway precisa validar se aquele token JWT ainda é válido e ativo. Para isso, o Node.js realiza uma chamada RPC síncrona (bloqueante para aquela conexão específica) diretamente para o Auth Service em ASP.NET Core, garantindo uma validação centralizada e de alto desempenho.
 
@@ -60,7 +60,7 @@ O sistema demonstra a convivência de três paradigmas distintos de comunicaçã
 
 ## Justificativa Arquitetural Frente aos Requisitos
 
-**Serviço acessível a múltiplos clientes na Internet**: A infraestrutura na AWS utilizará um Application Load Balancer (ALB) como porta de entrada, distribuindo o tráfego HTTP e WebSocket entre as instâncias EC2, permitindo o acesso público escalável.
+**Serviço acessível a múltiplos clientes na Internet**: A infraestrutura na AWS adota **uma instância EC2 dedicada por serviço** (Auth, Gateway, cada Game Engine, Score, PostgreSQL, Redis e Kafka), **sem orquestrador de contêineres** (não se utiliza Kubernetes). Um **Load Balancer** atua como porta de entrada para o tráfego HTTP/REST e para a sinalização, distribuindo a carga entre as instâncias e permitindo acesso público escalável. O tráfego de jogo em tempo real (WebRTC/UDP) conecta o cliente **diretamente** à EC2 do Game Engine atribuído à sala, o que distribui naturalmente a carga das partidas entre as instâncias de motor.
 
 **Uso de mais de uma linguagem de programação**: O ecossistema integra C# (segurança e confiabilidade no Auth), JavaScript/TypeScript (alta performance de I/O orientado a eventos no Gateway e reuso de código nos Motores de Jogo) e Python (flexibilidade e manipulação de dados no serviço de pontuação).
 

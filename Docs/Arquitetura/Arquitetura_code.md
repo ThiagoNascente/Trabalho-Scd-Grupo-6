@@ -7,64 +7,72 @@ flowchart TD
         N2[Cliente Web B<br/>Canvas API / JS]
     end
 
-    subgraph Infra_AWS [Nuvem AWS - Instâncias EC2]
-        LB[AWS Application Load Balancer]
+    subgraph Infra_AWS [Nuvem AWS - 1 serviço por instância EC2, sem Kubernetes]
+        LB[AWS Load Balancer<br/>HTTP/REST + Sinalização]
 
         %% Microsserviço de Autenticação
-        subgraph MS_Auth [Serviço de Autenticação]
+        subgraph MS_Auth [EC2 - Serviço de Autenticação]
             Auth[Auth Service<br/>ASP.NET Core / C#]
-            DB_User[(PostgreSQL<br/>Transacional)]
         end
 
-        %% Microsserviço de Conexão
-        subgraph MS_Gateway [Gateway de Conexão]
-            Gateway[Game Gateway & Lobby<br/>Node.js / Socket.io]
+        %% Banco de dados
+        subgraph MS_DB [EC2 - Banco de Dados]
+            DB_User[(PostgreSQL<br/>Primary + Réplica de leitura)]
         end
 
-        %% Motores de Jogo Particionados
-        subgraph MS_Engine [Motores de Jogo - Particionados]
-            EngineA[Engine Jogo 1<br/>Node.js Process]
-            EngineB[Engine Jogo 2<br/>Node.js Process]
-            EngineC[Engine Jogo 3<br/>Node.js Process]
+        %% Microsserviço de Conexão / Sinalização
+        subgraph MS_Gateway [EC2 - Gateway / Lobby / Sinalização]
+            Gateway[Game Gateway & Lobby<br/>Node.js + Sinalização WebRTC]
+        end
+
+        %% Motores de Jogo Particionados - 1 EC2 por jogo
+        subgraph MS_Engine [EC2 dedicada por jogo - Motores de Jogo]
+            EngineA[Engine Jogo 1<br/>Node.js]
+            EngineB[Engine Jogo 2<br/>Node.js]
+            EngineC[Engine Jogo 3<br/>Node.js]
         end
 
         %% Broker de Eventos
-        Broker{Apache Kafka<br/>Message Broker}
+        Broker{Apache Kafka<br/>EC2 - Message Broker}
 
         %% Microsserviço de Score
-        subgraph MS_Score [Serviço de Pontuação]
+        subgraph MS_Score [EC2 - Serviço de Pontuação]
             Score[Score Service<br/>Python Flask]
-            Cache[(Redis<br/>Leaderboard Cache)]
+            Cache[(Redis<br/>EC2 - Leaderboard Cache)]
         end
     end
 
-    %% Fluxos de Comunicação Externa
-    N1 -->|1. HTTPS / REST| LB
-    N1 <--->|2. WebSockets| LB
-    N2 -->|1. HTTPS / REST| LB
-    N2 <--->|2. WebSockets| LB
+    %% REST e sinalização passam pelo Load Balancer
+    N1 -->|1. HTTPS / REST: login, leaderboard| LB
+    N2 -->|1. HTTPS / REST: login, leaderboard| LB
+    N1 -->|2. Sinalização WebRTC via WS| LB
+    N2 -->|2. Sinalização WebRTC via WS| LB
 
     %% Roteamento do Load Balancer
     LB -->|Rota: /api/auth| Auth
-    LB -->|Rota: /ws/game| Gateway
+    LB -->|Rota: /ws/lobby| Gateway
+    LB -->|Rota: /api/scores| Score
 
-    %% Fluxos Internos Síncronos (REST / gRPC)
+    %% Fluxos Internos Síncronos
     Auth -->|Escrita/Leitura| DB_User
     Gateway <-->|3. Validação JWT<br/>gRPC Síncrono| Auth
 
-    %% Roteamento Interno de Partidas
-    Gateway <--->|4. Inputs / Estado<br/>IPC ou gRPC| EngineA
-    Gateway <--->|4. Inputs / Estado<br/>IPC ou gRPC| EngineB
-    Gateway <--->|4. Inputs / Estado<br/>IPC ou gRPC| EngineC
+    %% Matchmaking: o Gateway atribui a sala a um Engine e negocia a sessão WebRTC
+    Gateway -->|4. Atribui sala / negocia sessão| EngineA
+    Gateway -->|4. Atribui sala / negocia sessão| EngineB
+    Gateway -->|4. Atribui sala / negocia sessão| EngineC
+
+    %% Fluxo de jogo em tempo real: WebRTC DataChannel DIRETO cliente <-> engine
+    N1 <-->|5. WebRTC DataChannel UDP<br/>inputs / estado| EngineA
+    N2 <-->|5. WebRTC DataChannel UDP<br/>inputs / estado| EngineA
 
     %% Fluxo Assíncrono Orientado a Eventos
-    EngineA -->|5. Publica 'match-completed'| Broker
-    EngineB -->|5. Publica 'match-completed'| Broker
-    EngineC -->|5. Publica 'match-completed'| Broker
+    EngineA -->|6. Publica 'match-completed'| Broker
+    EngineB -->|6. Publica 'match-completed'| Broker
+    EngineC -->|6. Publica 'match-completed'| Broker
 
     %% Processamento em Background
-    Broker -->|6. Consome Eventos<br/>Assíncrono| Score
-    Score -->|7. Atualiza Ranking| Cache
-    Score -.->|8. Persistência de Longo Prazo| DB_User
-    LB -->|Rota: /api/scores| Score
+    Broker -->|7. Consome Eventos<br/>Assíncrono| Score
+    Score -->|8. Atualiza Ranking| Cache
+    Score -.->|9. Persistência de Longo Prazo| DB_User
 ```
