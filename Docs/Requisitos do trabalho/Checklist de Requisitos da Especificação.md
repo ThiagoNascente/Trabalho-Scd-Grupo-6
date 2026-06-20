@@ -13,6 +13,10 @@
 
 > **Atualização 2026-06-19 (v2):** concluídos (a) as correções rápidas **9.1, 9.3, 9.4, 9.5, 9.6** (9.7 parcial); (b) **item 1 — Game Engines isolados** (3 processos independentes + gateway-relay, isolamento validado); (c) **item 2 — WebRTC** (canal de jogo no DataChannel com fallback Socket.io — implementado, falta validar no navegador); (d) **itens 4 e 5 — Kafka + Score Service**: cada engine publica `match-completed` ao fim da partida ([game-engine/kafka.js](../../game-engine/kafka.js)) e o novo **Score Service em Python** ([score-service/](../../score-service/)) consome, materializa o ranking por minigame no Redis e o histórico no PostgreSQL, expondo `GET /api/scores`; e (e) **item 7 — leaderboard**: tela "Ranking Global" no [frontend/index.html](../../frontend/index.html) consumindo o Score Service, com degradação graciosa. Reflexo no placar: **2.3 e 2.4 ⛔→🟡** (pub/sub e messaging implementados — falta o teste E2E com broker real na nuvem/Docker), **1.5/1.7** reforçados (assíncrono + consistência eventual) e **2.1** consolidado (Python agora é serviço real). Demais requisitos ainda dependem de Redis-leaderboard ponta a ponta, gRPC, replicação e AWS. Detalhes no [Plano v2](../v2/Plano%20de%20correções%20pendentes%20para%20v2.md).
 
+> **Atualização 2026-06-19 (v2, 2ª rodada):** o ambiente passou a ter **Node + Python + .NET 8 + Java**. Entregues: **(4.2) clientes simulados** — harness `load-test/` com bots que jogam os 3 minigames em paralelo (8 bots → 6 partidas concorrentes, 0 erros; isolamento de falha demonstrado); **(4.8) dados de teste** versionados em `test-data/` (+ `selftest_dataset.py`); **(9.2) auth canônico** — C# oficial (compila aqui) e `auth-service-lite` alinhado (bcrypt, `/login → {token}`, TTL 2h); **(item 11) particionamento de dados** — `scores` particionada por minigame (`PARTITION BY LIST`, validado offline por `selftest_partition.py`). Reflexo: **4.2 🟡→✅**, **4.8 ⛔→✅**, **4.3 ⛔→🟡**, 1.6 reforçado. Placar geral: **13 ✅ / 8 🟡 / 3 ⛔**.
+
+> **Atualização 2026-06-19 (v2, 3ª rodada):** stack Docker completa **validada E2E** — o fluxo `engine → Kafka → Score → Redis → API → tela` rodou ao vivo (3 rankings populados via harness, **confirmado visualmente pelo usuário**), após corrigir o **CORS** do Score e tornar o **produtor Kafka resiliente**. UI: **recorde pessoal no Command Center** (`/api/scores/player`) + ranking **top 5**. Reflexo: **2.3, 2.4 e 1.2 🟡→✅**; 1.5/1.7 reforçados (assíncrono/consistência eventual validados E2E — falta só o gRPC e a réplica). Placar geral: **16 ✅ / 5 🟡 / 3 ⛔**. Doc consolidada: HANDOFF removido (absorvido no Rastreio), `run.md` + `dev-stack.sh` adicionados.
+
 ---
 
 ## 1. Características obrigatórias do sistema (válidas para qualquer cenário)
@@ -20,8 +24,8 @@
 - [ ] **1.1 — Serviço acessível a múltiplos clientes na Internet.** ⛔
   Hoje roda em `localhost`/LAN via [docker-compose.yml](../../docker-compose.yml); o cliente já suporta host remoto ([frontend/config.js](../../frontend/config.js)), mas **ainda não há deploy público na AWS**. → Plano v2 item 3, 12.
 
-- [ ] **1.2 — Integração e coordenação de vários componentes distribuídos (implementados no trabalho).** 🟡
-  Componentes reais e coordenados: Auth Service (C#), Game Gateway (Node, agora **relay**), **3 Game Engines independentes** ([game-engine](../../game-engine/), `GAME=jogo1|2|3`), **Score Service (Python)** ([score-service/](../../score-service/)), Frontend e PostgreSQL/Redis/Kafka. O gateway autentica/roteia, os engines rodam a física isolada (item 1 ✅) e publicam o fim de partida no Kafka, e o Score consome e materializa o ranking. **Falta** apenas validar a **coordenação E2E** (broker real) e o **deploy distribuído** (itens 3/12). → Plano v2 itens 5, 3, 12.
+- [x] **1.2 — Integração e coordenação de vários componentes distribuídos (implementados no trabalho).** ✅
+  Componentes reais e coordenados: Auth Service (C#), Game Gateway-relay (Node), **3 Game Engines independentes** ([game-engine](../../game-engine/), `GAME=jogo1|2|3`), **Score Service (Python)** ([score-service/](../../score-service/)), Frontend e PostgreSQL/Redis/Kafka. A **coordenação foi validada E2E na stack Docker**: o fluxo `engine → Kafka → Score → Redis → API → tela` roda ponta a ponta (3 rankings populados via harness, confirmado pelo usuário). **Falta** apenas o **deploy público na AWS** (req. 1.1/4.4 → itens 3/12).
 
 - [x] **1.3 — Acessos concorrentes a recursos/dados compartilhados.** ✅
   O estado de cada sala é compartilhado e modificado simultaneamente por vários jogadores; o PostgreSQL recebe escritas/leituras concorrentes de usuários e vitórias.
@@ -30,14 +34,14 @@
   Servidor autoritativo com loop de física a 60 Hz por sala (`setInterval`/event loop do Node), processando enquanto os clientes enviam inputs. Várias partidas rodam concorrentemente.
 
 - [ ] **1.5 — Mecanismos de interação remota síncrona (bloqueante) e assíncrona.** 🟡
-  - *Síncrona:* REST do Auth (login/registro/wins) cobre o mínimo. O **gRPC** previsto (RPC bloqueante para validação de JWT) **não existe** — validação é local ([game-gateway/index.js:19](../../game-gateway/index.js)). → Plano v2 item 8.
-  - *Assíncrona:* WebSockets (push de estado em tempo real) + agora **messaging via Kafka** (`match-completed`: engines publicam, Score consome) — implementado ([game-engine/kafka.js](../../game-engine/kafka.js), [score-service/consumer.py](../../score-service/consumer.py)); falta o teste E2E com broker real. → Plano v2 itens 4, 12.
+  - *Síncrona:* REST do Auth (login/registro/wins) cobre o mínimo. O **gRPC** previsto (RPC bloqueante para validação de JWT) **ainda não existe** — validação é local ([game-gateway/index.js](../../game-gateway/index.js)). → Plano v2 item 8.
+  - *Assíncrona:* WebSockets (push de estado em tempo real) + **messaging via Kafka** (`match-completed`: engines publicam, Score consome), **validado E2E na stack Docker** com broker real ([game-engine/kafka.js](../../game-engine/kafka.js), [score-service/consumer.py](../../score-service/consumer.py)). → Plano v2 itens 4, 5.
 
 - [ ] **1.6 — Replicação e particionamento de dados e funcionalidades.** 🟡
-  **Particionamento funcional real** já existe: os 3 jogos rodam em **processos/engines separados** ([game-engine](../../game-engine/)), com isolamento validado (derrubar um engine não afeta os demais) — item 1 ✅. **Falta** a **replicação** do PostgreSQL (instância única) e o **particionamento de dados** das tabelas de pontuação. → Plano v2 itens 10, 11.
+  **Particionamento funcional** (3 engines isolados — item 1 ✅) **e de DADOS**: a tabela `scores` é **particionada por minigame** (PARTITION BY LIST em [score-service/store.py](../../score-service/store.py), validado offline por [selftest_partition.py](../../score-service/selftest_partition.py)) — item 11 🟡. **Falta** a **replicação** do PostgreSQL (instância única, item 10) e o E2E do pruning em PG real. → Plano v2 itens 10, 11.
 
 - [ ] **1.7 — Tratamentos para garantir consistência de dados e disponibilidade.** 🟡
-  Há consistência transacional básica (BCrypt + EF Core/PostgreSQL) e `restart: unless-stopped`. A **consistência eventual** já está implementada: o Score consome o Kafka com commit manual de offset após persistir (`enable_auto_commit=False` + `auto_offset_reset='earliest'`, [score-service/consumer.py](../../score-service/consumer.py)) — com o Score parado, os eventos ficam retidos e são processados ao subir. **Falta** a **réplica** do PostgreSQL para disponibilidade de leitura e o teste E2E. → Plano v2 itens 10, 12.
+  Consistência transacional (BCrypt + EF Core/PostgreSQL) + `restart: unless-stopped`. A **consistência eventual** está implementada e **funcionou E2E na stack Docker**: o Score consome o Kafka com commit manual de offset após persistir (`enable_auto_commit=False` + `auto_offset_reset='earliest'`, [score-service/consumer.py](../../score-service/consumer.py)). **Falta** a **réplica** do PostgreSQL para disponibilidade de leitura. → Plano v2 item 10.
 
 ---
 
@@ -49,11 +53,11 @@
 - [x] **2.2 — Paradigma Cliente-Servidor.** ✅
   REST (HTTP) + WebSockets (Socket.io) entre navegador e backend.
 
-- [ ] **2.3 — Paradigma Publish-Subscribe.** 🟡
-  Implementado: os engines **publicam** `match-completed` no tópico Kafka ([game-engine/kafka.js](../../game-engine/kafka.js)) e o Score Service **assina/consome** via consumer group ([score-service/consumer.py](../../score-service/consumer.py)). Validada a lógica de ranking offline ([score-service/selftest.py](../../score-service/selftest.py)); **falta** o teste E2E com o broker real (sem Docker no ambiente de dev). → Plano v2 itens 4, 12.
+- [x] **2.3 — Paradigma Publish-Subscribe.** ✅
+  Os engines **publicam** `match-completed` no tópico Kafka ([game-engine/kafka.js](../../game-engine/kafka.js)) e o Score Service **assina/consome** via consumer group ([score-service/consumer.py](../../score-service/consumer.py)). **Validado E2E na stack Docker** (broker real): as partidas publicam e o Score materializa o ranking por minigame. → Plano v2 itens 4, 5.
 
-- [ ] **2.4 — Paradigma Messaging (mensageria assíncrona).** 🟡
-  Produtor (kafkajs, [game-engine/kafka.js](../../game-engine/kafka.js)) e consumidor (kafka-python, [score-service/consumer.py](../../score-service/consumer.py)) de eventos `match-completed` implementados, desacoplando o fim de partida da gravação da pontuação. **Falta** o teste E2E com broker real. → Plano v2 itens 4, 12.
+- [x] **2.4 — Paradigma Messaging (mensageria assíncrona).** ✅
+  Produtor (kafkajs, **resiliente** — [game-engine/kafka.js](../../game-engine/kafka.js)) e consumidor (kafka-python, [score-service/consumer.py](../../score-service/consumer.py)) de eventos `match-completed`, desacoplando o fim de partida da gravação da pontuação. **Validado E2E com broker real** (Kafka no Docker). → Plano v2 itens 4, 5.
 
 ---
 
@@ -77,11 +81,11 @@
 
 - [x] **4.1 — Grupo de 3–4 alunos.** ✅ Quatro integrantes (Thiago, Vinícius, Moisés, Ana Liz).
 
-- [ ] **4.2 — Implementação dos serviços + clientes simulados para demonstrar o uso.** 🟡
-  Serviços e cliente real (navegador) existem; **faltam clientes simulados** (bots/script de carga) para exercitar o sistema sistematicamente. → Plano v2 item 12.
+- [x] **4.2 — Implementação dos serviços + clientes simulados para demonstrar o uso.** ✅
+  Serviços + cliente real (navegador) + **clientes simulados** ([load-test/](../../load-test/)): bots autenticam no Auth, conectam no gateway e jogam os 3 minigames **em paralelo** (8 bots → **6 partidas concorrentes, 0 erros**; isolamento de falha demonstrado). Validado localmente contra a stack lite; na AWS aponta para o Load Balancer (item 12).
 
-- [ ] **4.3 — Cenário de demonstração representativo que exercite sistematicamente as características.** ⛔
-  Não há roteiro de demonstração que cubra concorrência, sync/async, replicação, particionamento e tolerância a falhas. → Plano v2 item 12.
+- [ ] **4.3 — Cenário de demonstração representativo que exercite sistematicamente as características.** 🟡
+  O harness [load-test/](../../load-test/) já roteiriza **concorrência** (N partidas simultâneas) e **tolerância a falha** (derrubar um engine e ver os demais jogos seguirem). **Falta** o roteiro completo cobrindo também **interação síncrona (gRPC)**, **replicação** e o particionamento exercitados na AWS. → Plano v2 itens 8, 10, 12.
 
 - [ ] **4.4 — Executar a demonstração na nuvem AWS (EC2).** ⛔
   Deploy distribuído ainda não realizado. → Plano v2 itens 3, 12.
@@ -93,8 +97,8 @@
 
 - [x] **4.7 — Instruções de uso (README).** ✅ [README.md](../../README.md) com passos de execução. *Atualizar para o deploy distribuído na AWS.* → Plano v2 item 9.7.
 
-- [ ] **4.8 — Dados de teste.** ⛔
-  Não há conjunto de dados de teste versionado para a demonstração.
+- [x] **4.8 — Dados de teste.** ✅
+  Conjunto **versionado** em [test-data/](../../test-data/): usuários seed (para os clientes simulados), fixture determinístico de eventos `match-completed` e ranking esperado (oráculo), com selftest ([selftest_dataset.py](../../score-service/selftest_dataset.py)).
 
 - [ ] **4.9 — Vídeo de demonstração (com participação de todos).** ⛔ Ainda não produzido.
 
@@ -104,10 +108,10 @@
 
 | Bloco | Total | Cumpridos | Parciais | Não atendidos |
 |---|---|---|---|---|
-| 1. Características obrigatórias | 7 | 2 | 4 | 1 |
-| 2. Modelos/paradigmas | 4 | 2 | 2 | — |
+| 1. Características obrigatórias | 7 | 3 | 3 | 1 |
+| 2. Modelos/paradigmas | 4 | 4 | — | — |
 | 3. Cenário (jogo multiplayer) | 4 | 4 | — | — |
-| 4. Formato/entregáveis | 9 | 3 | 2 | 4 |
-| **Geral** | **24** | **11** | **8** | **5** |
+| 4. Formato/entregáveis | 9 | 5 | 2 | 2 |
+| **Geral** | **24** | **16** | **5** | **3** |
 
-**Resumo:** o **núcleo de jogo multiplayer (bloco 3) está completo**, as bases de concorrência (1.3, 1.4) estão sólidas e os **paradigmas async/pub-sub (2.3, 2.4) já estão implementados em código** (Kafka + Score Service em Python), restando o teste E2E com broker real. O que ainda falta concentra-se em **distribuição real na AWS + leaderboard ponta a ponta + gRPC + replicação/particionamento** (itens técnicos do Plano v2) e nos **entregáveis de demonstração** (AWS EC2, cenário sistemático, clientes simulados, dados de teste e vídeo).
+**Resumo:** o **núcleo de jogo multiplayer (bloco 3) está completo**, as bases de concorrência (1.3, 1.4) sólidas, o **bloco de paradigmas (2.x) está 100%** e os **paradigmas async/pub-sub/messaging (2.3, 2.4) foram validados E2E na stack Docker** (Kafka real → Score em Python → Redis → leaderboard), o que também fechou a **coordenação distribuída (1.2 ✅)**. Já entregues: clientes simulados (4.2 ✅), dados de teste (4.8 ✅), particionamento de dados (1.6/item 11) e o leaderboard ponta a ponta (recorde pessoal + top 5). O que ainda falta concentra-se em **deploy na AWS (1.1/3) + gRPC síncrono (1.5/8) + replicação do PG (10)** e nos **entregáveis de demonstração** (AWS EC2, cenário roteirizado 4.3, vídeo 4.9).

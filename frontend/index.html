@@ -201,6 +201,13 @@
             max-width: 600px;
         }
 
+        /* Ranking: painel mais largo que o padrão (450px) p/ as 3 colunas
+           caberem com folga — antes o bloco do jogo 3 estourava. */
+        #leaderboard-container {
+            display: none;
+            max-width: 760px;
+        }
+
         #game1-lobby {
             display: none;
             max-width: 600px;
@@ -263,6 +270,18 @@
         .game-card:hover {
             background: rgba(255, 255, 255, 0.1);
             transform: translateY(-5px);
+        }
+
+        /* Recorde pessoal do jogador em cada game-card do dashboard */
+        .my-record {
+            font-size: 12px;
+            color: #7fb0ff;
+            margin: 4px 0 12px;
+            min-height: 16px;
+        }
+
+        .my-record b {
+            color: #fff;
         }
 
         /* LOBBY JOGOS */
@@ -346,6 +365,21 @@
         .lb-list .lb-score {
             color: #00ffff;
             font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        /* Trunca nomes longos com reticências em vez de estourar o bloco */
+        .lb-list li>span:first-child {
+            display: flex;
+            align-items: baseline;
+            min-width: 0;
+            margin-right: 8px;
+        }
+
+        .lb-list .lb-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .lb-empty {
@@ -457,16 +491,19 @@
             <div class="game-card">
                 <h3>Jogo 1</h3>
                 <p style="font-size: 13px; color: #aaa;">Batalha Espacial</p>
+                <p class="my-record" id="myrec-jogo1">Seu recorde: <b>—</b></p>
                 <button class="btn" onclick="openGame1Lobby()" disabled id="btn-jogo1">Entrar</button>
             </div>
             <div class="game-card">
                 <h3>Jogo 2</h3>
                 <p style="font-size: 13px; color: #aaa;">Cinturão Asteroides</p>
+                <p class="my-record" id="myrec-jogo2">Seu recorde: <b>—</b></p>
                 <button class="btn" onclick="openGame2Lobby()" disabled id="btn-jogo2">Entrar</button>
             </div>
             <div class="game-card">
                 <h3>Jogo 3</h3>
                 <p style="font-size: 13px; color: #aaa;">Defesa de Frota</p>
+                <p class="my-record" id="myrec-jogo3">Seu recorde: <b>—</b></p>
                 <button class="btn" onclick="openGame3Lobby()" disabled id="btn-jogo3">Entrar</button>
             </div>
         </div>
@@ -764,6 +801,7 @@
         function showDashboard() {
             showScreen('dashboard-container');
             document.getElementById('display-user').innerText = localStorage.getItem('spaceship_user');
+            loadMyRecords();
             if (!socket) connectSocket();
         }
 
@@ -775,13 +813,40 @@
         // estiver no ar (ex.: stack DEV sem Kafka/Redis), mostra aviso sem quebrar.
         // ==========================================
         const LB_GAMES = ['jogo1', 'jogo2', 'jogo3'];
+        const LB_TOP = 5; // ranking global mostra só o top 5 (não cresce indefinidamente)
+        // Rótulo do recorde por minigame: jogo1 conta vitórias; jogo2/3 = pontuação.
+        const REC_LABEL = {
+            jogo1: v => `${v} vitória${v === 1 ? '' : 's'}`,
+            jogo2: v => `${v} pts`,
+            jogo3: v => `${v} pts`,
+        };
+
+        // Recorde pessoal do jogador (tela Command Center). Degrada com elegância:
+        // se o Score Service não responder, mantém "—" sem quebrar o dashboard.
+        async function loadMyRecords() {
+            const user = localStorage.getItem('spaceship_user');
+            LB_GAMES.forEach(g => { const b = document.querySelector(`#myrec-${g} b`); if (b) b.innerText = '—'; });
+            if (!user) return;
+            try {
+                const res = await fetch(`${SCORE_API_URL}/player?username=${encodeURIComponent(user)}`);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                const rec = (data && data.records) || {};
+                LB_GAMES.forEach(g => {
+                    const b = document.querySelector(`#myrec-${g} b`); if (!b) return;
+                    const v = rec[g];
+                    b.innerText = (v == null) ? 'sem registro' : REC_LABEL[g](Number(v));
+                });
+            } catch (e) { /* Score indisponível: mantém "—" */ }
+        }
+
         function openLeaderboard() { showScreen('leaderboard-container'); loadLeaderboard(); }
 
         async function loadLeaderboard() {
             const status = document.getElementById('lb-status');
             status.style.color = '#f39c12'; status.innerText = 'Carregando ranking...';
             try {
-                const res = await fetch(`${SCORE_API_URL}?limit=10`);
+                const res = await fetch(`${SCORE_API_URL}?limit=${LB_TOP}`);
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 const data = await res.json();
                 LB_GAMES.forEach(g => renderLeaderboard(g, data[g] || []));
@@ -798,10 +863,10 @@
             if (!el) return;
             el.innerHTML = '';
             if (!rows.length) { el.innerHTML = '<li class="lb-empty">Sem registros ainda.</li>'; return; }
-            rows.forEach((r, i) => {
+            rows.slice(0, LB_TOP).forEach((r, i) => {
                 const li = document.createElement('li');
                 const name = String(r.username == null ? '—' : r.username).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                li.innerHTML = `<span><span class="lb-rank">${i + 1}º</span>${name}</span><span class="lb-score">${Number(r.score) || 0}</span>`;
+                li.innerHTML = `<span><span class="lb-rank">${i + 1}º</span><span class="lb-name">${name}</span></span><span class="lb-score">${Number(r.score) || 0}</span>`;
                 el.appendChild(li);
             });
         }

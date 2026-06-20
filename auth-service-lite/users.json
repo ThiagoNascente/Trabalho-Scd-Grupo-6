@@ -1,14 +1,56 @@
 [
   {
     "id": 1,
-    "username": "vinicius",
-    "passwordHash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+    "username": "teste_manual",
+    "passwordHash": "$2a$11$DfWWwBcWXfvlS6en.cENuuzkEwCLvNqzwGJs6TR.GCs70UvsLwpzC",
     "wins": 0
   },
   {
     "id": 2,
-    "username": "tester_63328",
-    "passwordHash": "55a5e9e78207b4df8699d60886fa070079463547b095d1a05bc719bb4e6cd251",
+    "username": "piloto_alfa",
+    "passwordHash": "$2a$11$i/LNxiXjGTpi2aFxzBX.hu7f1e3Ivdd0bhtp4w9NslG0xzKH9neJa",
+    "wins": 0
+  },
+  {
+    "id": 3,
+    "username": "piloto_bravo",
+    "passwordHash": "$2a$11$Cx61b5Yi.ZrvJEExP3oh0.sVT28eMBPzlU1cAqC5kjqjAnJDYQn6K",
+    "wins": 0
+  },
+  {
+    "id": 4,
+    "username": "piloto_charlie",
+    "passwordHash": "$2a$11$G10BNDGfW/exbV66QAWW.OZ9ZdwFc.KFzE5fKFNGTTt4wTWMamCKe",
+    "wins": 1
+  },
+  {
+    "id": 5,
+    "username": "piloto_delta",
+    "passwordHash": "$2a$11$6RyxHgsfrWoYHjhIrooR.OSfB.s4cfTtcM4h3YcTFLqxF2a7V7c0m",
+    "wins": 0
+  },
+  {
+    "id": 6,
+    "username": "piloto_echo",
+    "passwordHash": "$2a$11$sN8JsM/.kzckdEQgLBiheOrapQSPlXv/XmKxoy0jx0gVaM.H7rzYC",
+    "wins": 0
+  },
+  {
+    "id": 7,
+    "username": "piloto_foxtrot",
+    "passwordHash": "$2a$11$WvZTV8jTV7/UjlrkPXy37eNQLKyfx11Y/VUtz3WmW27r9r6f6HN7i",
+    "wins": 1
+  },
+  {
+    "id": 8,
+    "username": "piloto_golf",
+    "passwordHash": "$2a$11$8anfZOlxTrU3Mm7Y4KgTwu0Zj9iM8sb3OiylD74ZDdOigqhgRVNBC",
+    "wins": 0
+  },
+  {
+    "id": 9,
+    "username": "piloto_hotel",
+    "passwordHash": "$2a$11$cT1ukG1zYkEiPKumXPBU.e9ZWdv.Fc2bynI9RFkEo63Ba0zsXG33m",
     "wins": 0
   }
 ]

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "description": "Usuários de teste versionados (req. 4.8). Usados pelo harness de clientes simulados (load-test/) para autenticar bots e exercitar concorrência. Todos respeitam a regra 4–30 caracteres do auth canônico (item 9.1/9.2).",
+  "defaultPassword": "orbita-2026",
+  "users": [
+    { "username": "piloto_alfa",    "password": "orbita-2026" },
+    { "username": "piloto_bravo",   "password": "orbita-2026" },
+    { "username": "piloto_charlie", "password": "orbita-2026" },
+    { "username": "piloto_delta",   "password": "orbita-2026" },
+    { "username": "piloto_echo",    "password": "orbita-2026" },
+    { "username": "piloto_foxtrot", "password": "orbita-2026" },
+    { "username": "piloto_golf",    "password": "orbita-2026" },
+    { "username": "piloto_hotel",   "password": "orbita-2026" },
+    { "username": "piloto_india",   "password": "orbita-2026" },
+    { "username": "piloto_juliet",  "password": "orbita-2026" },
+    { "username": "piloto_kilo",    "password": "orbita-2026" },
+    { "username": "piloto_lima",    "password": "orbita-2026" }
+  ]
+}

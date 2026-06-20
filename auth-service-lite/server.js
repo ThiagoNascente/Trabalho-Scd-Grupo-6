@@ -1,7 +1,19 @@
+// ==========================================================================
+// AUTH SERVICE — LITE (espelho de DESENVOLVIMENTO, item 9.2)
+//
+// CANÔNICO = auth-service (C#): BCrypt + PostgreSQL + EF Core, usado no
+// docker-compose. ESTE serviço (Node + users.json) é só para rodar a stack
+// SEM Docker, e está ALINHADO ao canônico no que o cliente enxerga:
+//   - hashing de senha por BCRYPT (antes era SHA-256 sem salt);
+//   - validação de tamanho 4–30 (igual ao DataAnnotations do UserDto C#);
+//   - mesmo contrato de /login → { token } e mesmas claims (sub, id);
+//   - mesmo issuer/audience e TTL do token (2h).
+// Não é a fonte de verdade em produção — é uma réplica de dev.
+// ==========================================================================
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
 
@@ -23,8 +35,18 @@ let users = [];
 try { users = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch { users = []; }
 function saveDB() { fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2)); }
 
+// Custo do BCrypt: 11 = default do BCrypt.Net usado no auth-service C# (canônico).
+const BCRYPT_ROUNDS = 11;
+// TTL do token alinhado ao canônico C# (2h em AuthController.GenerateJwtToken).
+const TOKEN_TTL = '2h';
+
 function hashPassword(password) {
-  return crypto.createHash('sha256').update(password).digest('hex');
+  return bcrypt.hashSync(password, BCRYPT_ROUNDS);
+}
+function verifyPassword(password, hash) {
+  // Aceita hashes BCrypt ($2a/$2b/$2y...). Hashes SHA-256 legados (64 hex) não
+  // batem e exigem novo registro — ver migração no README (item 9.2).
+  try { return bcrypt.compareSync(password, hash); } catch { return false; }
 }
 
 // ---------- ROTAS (mesma API do auth-service .NET) ----------
@@ -52,14 +74,15 @@ app.post('/api/auth/login', (req, res) => {
   const user = users.find(u => u.username === username);
   if (!user) return res.status(401).json({ message: 'Usuário não encontrado.' });
 
-  if (user.passwordHash !== hashPassword(password)) return res.status(401).json({ message: 'Senha incorreta.' });
+  if (!verifyPassword(password, user.passwordHash)) return res.status(401).json({ message: 'Senha incorreta.' });
 
   const token = jwt.sign(
     { sub: user.username, id: user.id },
     JWT_SECRET,
-    { expiresIn: '24h', issuer: 'spaceship_auth', audience: 'spaceship_gateway' }
+    { expiresIn: TOKEN_TTL, issuer: 'spaceship_auth', audience: 'spaceship_gateway' }
   );
-  res.json({ token, username: user.username });
+  // Contrato alinhado ao canônico C# (AuthController.Login → { token }).
+  res.json({ token });
 });
 
 // GET /api/auth/wins/:username

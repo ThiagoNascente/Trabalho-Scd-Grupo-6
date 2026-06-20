@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "description": "Ranking esperado por minigame após aplicar TODOS os eventos de sample-match-events.json segundo a política do Score Service. Usado como ORÁCULO pelo selftest do Score (score-service/selftest_dataset.py). Ordenado por score desc.",
+  "rankings": {
+    "jogo1": [
+      { "username": "nova", "score": 2 },
+      { "username": "vega", "score": 1 }
+    ],
+    "jogo2": [
+      { "username": "orion", "score": 200 },
+      { "username": "nova", "score": 180 },
+      { "username": "vega", "score": 120 }
+    ],
+    "jogo3": [
+      { "username": "vega", "score": 500 },
+      { "username": "nova", "score": 150 }
+    ]
+  }
+}

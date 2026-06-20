@@ -40,6 +40,28 @@ Publicado pelos engines em [game-engine/kafka.js](../game-engine/kafka.js):
 A função `leaderboard_ops` ([store.py](store.py)) é **pura** (sem I/O), o que
 permite validar a política offline — ver abaixo.
 
+## Particionamento de dados por minigame (item 11)
+
+A tabela `scores` (histórico no PostgreSQL) é **particionada por LISTA** da coluna
+`game` ([store.py](store.py) `init_schema`): há uma partição física por minigame —
+`scores_jogo1`, `scores_jogo2`, `scores_jogo3` — mais uma partição **DEFAULT**
+(`scores_outros`) para minigames futuros.
+
+```sql
+CREATE TABLE scores (... , PRIMARY KEY (id, game)) PARTITION BY LIST (game);
+CREATE TABLE scores_jogo1 PARTITION OF scores FOR VALUES IN ('jogo1');
+-- jogo2, jogo3, e uma partição DEFAULT
+```
+
+- **Escrita:** o INSERT vai na tabela-pai `scores`; o PostgreSQL **roteia
+  sozinho** para a partição do `game`. A função `partition_for(game)`
+  ([store.py](store.py)) espelha esse roteamento para observabilidade/teste.
+- **Leitura:** uma consulta de ranking por minigame (`WHERE game='jogoN'`) só
+  varre a partição daquele jogo (**partition pruning**), atendendo ao aceite do
+  item 11. (A leitura quente do leaderboard vem do Redis; o PG é histórico/auditoria.)
+- **Migração:** o schema é criado do zero no boot; converter uma tabela `scores`
+  pré-existente e não particionada exigiria um passo de migração à parte.
+
 ## Tolerância a falha (Consistência Eventual)
 
 - Commit **manual** de offset só **após** persistir (`enable_auto_commit=False`).
@@ -81,9 +103,16 @@ KAFKA_BROKER=localhost:9092 REDIS_URL=redis://localhost:6379/0 python app.py
 ## Validação offline (sem Docker/Kafka/Redis/PG)
 
 ```bash
-python selftest.py
+python selftest.py             # política de ranking (Redis falso em memória)
+python selftest_dataset.py     # fixture de teste (req. 4.8) x ranking esperado
+python selftest_partition.py   # roteamento de partição por minigame (item 11)
 ```
 
-Valida a política de ranking por minigame (`leaderboard_ops`) aplicando os eventos
-em um Redis falso em memória. Usado para validar a lógica neste ambiente; o teste
-**E2E** (broker real + retenção/consistência eventual) roda na fase Docker/AWS.
+- `selftest.py` — valida `leaderboard_ops` aplicando eventos num Redis falso.
+- `selftest_dataset.py` — aplica `test-data/sample-match-events.json` e confere
+  contra `test-data/expected-rankings.json` (dados de teste versionados).
+- `selftest_partition.py` — valida `partition_for` e a distribuição do fixture
+  pelas partições (`scores_jogoN` / DEFAULT).
+
+O teste **E2E** (broker/Redis/PG reais, retenção/consistência eventual e
+*partition pruning* via `EXPLAIN`) roda na fase Docker/AWS.

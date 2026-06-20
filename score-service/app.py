@@ -28,6 +28,21 @@ cfg = Config.from_env()
 store = Store(cfg)
 app = Flask(__name__)
 
+
+# CORS: o frontend é servido de outra origem (ex.: http://localhost:8080) e lê o
+# ranking deste serviço (porta 8000) — origem diferente. Liberamos a leitura para
+# qualquer origem, mesma postura do auth-lite (cors()) e do gateway (Socket.io
+# cors '*'). Sem este cabeçalho o navegador bloqueia GET /api/scores mesmo com a
+# resposta 200 ("falta Access-Control-Allow-Origin"). GET é "simple request",
+# então o Allow-Origin na resposta basta; Methods/Headers cobrem preflight futuro.
+@app.after_request
+def add_cors_headers(resp):
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return resp
+
+
 _started = False
 _start_lock = threading.Lock()
 
@@ -69,6 +84,19 @@ def scores():
         # Robustez na demo: leitura indisponível (ex.: Redis fora) não derruba a API.
         log.error("falha ao ler leaderboard (%s).", e)
         return jsonify(error="leaderboard indisponível no momento"), 503
+
+
+@app.get("/api/scores/player")
+def player_scores():
+    """Recorde do jogador em cada minigame (para a tela Command Center)."""
+    username = (request.args.get("username") or "").strip()
+    if not username:
+        return jsonify(error="username obrigatório"), 400
+    try:
+        return jsonify(username=username, records=store.player_record(username))
+    except Exception as e:
+        log.error("falha ao ler recorde do jogador (%s).", e)
+        return jsonify(error="recorde indisponível no momento"), 503
 
 
 # Inicia o trabalho de fundo no import (funciona com `python app.py` e gunicorn).

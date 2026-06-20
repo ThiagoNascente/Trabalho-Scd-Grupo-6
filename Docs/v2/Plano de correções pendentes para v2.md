@@ -35,21 +35,21 @@ O ciclo v1 fechou **todos os bugs de UI/UX e de consistência de gameplay** apon
 | 1 | ✅ Game Engines isolados — agora 3 processos independentes (`game-engine`, GAME=jogo1\|2\|3); falta só a EC2 dedicada (item 3) | QA §3 / Arquitetura | 🔴 | ● |
 | 2 | 🟡 Migração WebSockets → **WebRTC** (canal de jogo) — implementado com fallback; falta validar handshake no navegador + medir latência | QA §3 / decisão v2 | 🔴 | ● |
 | 3 | **Distribuição na AWS: 1 serviço por EC2 + Load Balancer** | Possiveis_problemas / decisão v2 | 🔴 | ● |
-| 4 | 🟡 Apache Kafka — engines publicam `match-completed`; Score consome (lógica validada; falta E2E com broker real) | QA §3 / Arquitetura | 🔴 | ◑ |
-| 5 | 🟡 Score Service (Python) — implementado: consumer Kafka + Redis/PostgreSQL + `GET /api/scores` (falta E2E) | QA §3 / Arquitetura | 🔴 | ● |
-| 6 | 🟡 Redis — sorted set de ranking por minigame já alimentado pelo Score; falta a leitura E2E + tela (item 7) | QA §3 / Arquitetura | 🟠 | ◑ |
-| 7 | 🟡 Leaderboard global por minigame — backend (`GET /api/scores`) + tela no dashboard implementados; falta confirmar no navegador com dados reais | GDD / Possiveis_problemas | 🔴 | ◑ |
+| 4 | ✅ Apache Kafka — produtor **resiliente** nos 3 engines + consumidor no Score; **E2E validado na stack Docker** (partidas publicam, Score consome) | QA §3 / Arquitetura | 🔴 | ◑ |
+| 5 | ✅ Score Service (Python) — consumer Kafka + Redis/PostgreSQL + `GET /api/scores` (+ `/api/scores/player`, CORS); **E2E validado** (3 rankings populados) | QA §3 / Arquitetura | 🔴 | ● |
+| 6 | ✅ Redis — ranking por minigame alimentado pelo Score e **lido E2E pela API** (`ZREVRANGE`/`ZSCORE`, sem varrer o PG) | QA §3 / Arquitetura | 🟠 | ◑ |
+| 7 | ✅ Leaderboard global por minigame — backend + tela "Ranking Global" (top 5) + recorde pessoal no Command Center; **confirmado visualmente** | GDD / Possiveis_problemas | 🔴 | ◑ |
 | 8 | gRPC síncrono p/ validação de JWT — não existe | Arquitetura | 🟠 | ◑ |
 | 9.1 | ✅ Validação de usuário/senha (4–30) no servidor C# | Possiveis_problemas | 🟠 | ◐ |
-| 9.2 | Unificar/decidir o serviço de auth (C# × lite Node) | Revisão v2 | 🟠 | ◐ |
+| 9.2 | ✅ Auth canônico decidido — C# é o oficial (compila aqui); `auth-service-lite` alinhado (bcrypt, `/login → {token}`, TTL 2h, validação 4–30) | Revisão v2 | 🟠 | ◐ |
 | 9.3 | ✅ Regra de vitória do Jogo 1 diverge do GDD | Revisão v1 (E2) | 🟡 | ◐ |
 | 9.4 | ✅ Remover manifestos k8s (fora de escopo agora) | Decisão v2 | 🟡 | ◐ |
 | 9.5 | ✅ Código morto: inimigo `formacao` | Revisão v1 (E3) | 🟡 | ◐ |
 | 9.6 | ✅ Segredos/credenciais por variável de ambiente (deploy AWS) | Deploy | 🟠 | ◐ |
 | 9.7 | 🟡 Guia de deploy removido / links quebrados na doc | Revisão v2 | 🟡 | ◐ |
 | 10 | Replicação do PostgreSQL (Primary-Replica) | QA §3 / Arquitetura | 🟠 | ◑ |
-| 11 | Particionamento de dados | QA §3 / Arquitetura | 🟡 | ◑ |
-| 12 | Bateria de testes na AWS EC2 | QA §4 | 🟠 | ◑ |
+| 11 | 🟡 Particionamento de dados — tabela `scores` particionada por LISTA do minigame (validado offline; falta E2E em PG real) | QA §3 / Arquitetura | 🟡 | ◑ |
+| 12 | 🟡 Bateria de testes na AWS — clientes simulados (req. 4.2) + dados de teste (req. 4.8) entregues e validados localmente; falta a bateria na AWS | QA §4 | 🟠 | ◑ |
 
 > Itens **removidos** em relação à revisão anterior: *Criptografia/TLS de todas as comunicações* e *WebRTC como PoC* (agora é migração efetiva, item 2). O bug de `targetPort` do k8s some porque os manifestos k8s serão descartados (item 5.4).
 
@@ -64,14 +64,14 @@ Comparação entre **o que está sendo construído** e o diagrama de referência
 | Cliente ↔ servidor por **WebRTC** (canal de jogo) | **WebRTC DataChannel** (geckos.io) para inputs+estado, com fallback Socket.io | 🟡 Implementado (item 2); falta validar no navegador + medir latência |
 | Sinalização/lobby via WS + REST | Existe (Socket.io + REST no Auth) | ✅ |
 | **1 serviço por EC2 + Load Balancer** | Tudo roda junto via `docker-compose`; sem deploy AWS | ⛔ → **distribuir** (item 3) |
-| **Game Engines** (1 por jogo) | Física dos 3 jogos é **monólito** no gateway | ⛔ → **isolar** (item 1) |
+| **Game Engines** (1 por jogo) | 3 processos independentes (`game-engine`, `GAME=jogo1\|2\|3`); gateway é relay | ✅ (item 1) |
 | Gateway valida JWT via **gRPC** ao Auth | Validação **local** com a chave compartilhada | ⛔ → item 8 |
-| Engine → **Kafka** → Score | Kafka sobe, **ninguém usa**; gateway grava win via REST | ⛔ → itens 4 e 5 |
-| **Redis** (cache leaderboard) | Sobe, **sem uso** | ⛔ → item 6 |
-| **Leaderboard** por minigame | Não existe (só contador `Wins`) | ⛔ → item 7 |
-| PostgreSQL Primary-Réplica | Instância única | ⛔ → item 10 |
+| Engine → **Kafka** → Score | Engines publicam `match-completed`; Score consome — **E2E validado na Docker** | ✅ (itens 4, 5) |
+| **Redis** (cache leaderboard) | Ranking por minigame materializado e lido pela API direto do Redis | ✅ (item 6) |
+| **Leaderboard** por minigame | Tela "Ranking Global" (top 5) + recorde no Command Center, servidos pelo Score | ✅ (item 7) |
+| PostgreSQL Primary-Réplica | Instância única (tabela `scores` **particionada** por minigame) | ⛔ replicação (item 10); 🟡 particionamento (item 11) |
 
-> **Conclusão:** a arquitetura-alvo do mermaid está **correta como destino**, mas o código atual ainda é, na prática, um **monólito sobre WebSockets**. A v2 é exatamente o trabalho de fazer o código convergir para o diagrama, com duas mudanças de rumo desta revisão já aplicadas ao diagrama: **WebRTC** no lugar de WebSockets e **EC2-por-serviço sem Kubernetes**.
+> **Conclusão:** o código **convergiu para o diagrama** no eixo distribuído — engines isolados, Kafka/Score/Redis/leaderboard em uso e **validados E2E** na stack Docker. Para fechar o diagrama faltam: o **gRPC** (item 8), a **distribuição na AWS** (item 3 — EC2-por-serviço, sem Kubernetes) e a **réplica do PostgreSQL** (item 10). O **WebRTC** já é o canal de jogo (com fallback Socket.io), pendente só a validação de latência no navegador (item 2).
 
 ---
 
@@ -154,21 +154,24 @@ Verificação (atualizada após os itens 1/4/5): a **física saiu do gateway** e
 - **Situação:** ~~Kafka + Zookeeper sobem; ninguém publica/consome~~ → **implementado** (falta E2E com broker real).
 - **Entregar:** cada Engine publica `match-completed` ao fim da partida (`kafkajs`); Score Service consome (cliente Kafka Python).
 - **Aceite:** com o Score Service **parado**, encerrar partidas **não perde** pontuação — ao subir o serviço, os eventos retidos são processados (Consistência Eventual).
-- **✔ Implementado (v2):** produtor `kafkajs` em [game-engine/kafka.js](../../game-engine/kafka.js) (`publishMatchCompleted`, tolerante a falha — nunca lança), inicializado em [game-engine/server.js](../../game-engine/server.js) e disparado nos 3 ganchos de fim de partida: Jogo 1 ([games/jogo1.js](../../game-engine/games/jogo1.js) `handleHit`), Jogo 2 ([games/jogo2.js](../../game-engine/games/jogo2.js) `fimDeJogo`) e Jogo 3 ([games/jogo3.js](../../game-engine/games/jogo3.js) `j3_gameOver`, vitória e derrota). Consumidor Python com **commit manual de offset após persistir** e `auto_offset_reset='earliest'` ([score-service/consumer.py](../../score-service/consumer.py)) → o aceite de Consistência Eventual fica garantido pela retenção do Kafka. Broker/tópico por env (`KAFKA_BROKER`/`MATCH_TOPIC`); compose injeta `kafka:29092` nos 3 engines + Score. **Validado:** sem broker e com broker morto o engine **não quebra** (fallback, testado node-side); a lógica do consumidor/ranking foi validada offline ([selftest.py](../../score-service/selftest.py)). **Pendente:** teste E2E com broker real (fase Docker/AWS — itens 3/12), pois não há Docker/Java no ambiente de dev.
+- **✔ Implementado (v2):** produtor `kafkajs` em [game-engine/kafka.js](../../game-engine/kafka.js) (`publishMatchCompleted`, tolerante a falha — nunca lança), inicializado em [game-engine/server.js](../../game-engine/server.js) e disparado nos 3 ganchos de fim de partida: Jogo 1 ([games/jogo1.js](../../game-engine/games/jogo1.js) `handleHit`), Jogo 2 ([games/jogo2.js](../../game-engine/games/jogo2.js) `fimDeJogo`) e Jogo 3 ([games/jogo3.js](../../game-engine/games/jogo3.js) `j3_gameOver`, vitória e derrota). Consumidor Python com **commit manual de offset após persistir** e `auto_offset_reset='earliest'` ([score-service/consumer.py](../../score-service/consumer.py)) → o aceite de Consistência Eventual fica garantido pela retenção do Kafka. Broker/tópico por env (`KAFKA_BROKER`/`MATCH_TOPIC`); compose injeta `kafka:29092` nos 3 engines + Score. **Validado:** sem broker e com broker morto o engine **não quebra** (fallback, testado node-side); a lógica do consumidor/ranking foi validada offline ([selftest.py](../../score-service/selftest.py)).
+- **✅ E2E validado (3ª rodada):** na stack Docker completa, partidas reais publicam `match-completed` e o Score consome → ranking populou ao vivo. O produtor virou **resiliente** ([game-engine/kafka.js](../../game-engine/kafka.js) `ensureProducer`): reconecta se o Kafka ficar pronto depois dos engines (corrige o bug que desativava a publicação no boot). **Resta** roteirizar o cenário de **retenção** (Score parado) para a demo — passos em [run.md](../../run.md).
 
 ### 4.3 🔴 Score Service (Python/Flask) — `score-service/` (item 5)
 
 - **Situação:** ~~stub; o gateway grava win via REST no Auth~~ → **implementado** (serviço Python real).
 - **Entregar:** serviço Python que consome `match-completed`, atualiza ranking no **Redis**, persiste no PostgreSQL e expõe `GET /api/scores` para o leaderboard.
 - **Aceite:** fim de partida grava pontuação **sem** o gateway chamar o Auth diretamente.
-- **✔ Implementado (v2):** serviço Flask em [score-service/](../../score-service/) — consumidor Kafka em thread de fundo ([consumer.py](../../score-service/consumer.py)) → materializa o ranking por minigame no **Redis** (sorted set) e grava o histórico no **PostgreSQL** (tabela `scores`, criada no boot) ([store.py](../../score-service/store.py)); expõe `GET /api/scores?game=jogoN` + `/health` ([app.py](../../score-service/app.py)). Política por minigame: Jogo 1 = total de vitórias (`ZINCRBY`); Jogo 2/3 = melhor pontuação (`ZADD GT`). Tudo por env ([config.py](../../score-service/config.py)); `Dockerfile` + `requirements.txt` prontos; serviço adicionado ao [docker-compose.yml](../../docker-compose.yml). O fim de partida **não** passa mais pelo Auth para a pontuação — flui pelo Kafka (o `Wins` do Jogo 1 segue como contador legado no Auth, em paralelo). **Validado:** deps instalam (venv Python 3.13), `app.py` importa e sobe degradando com elegância sem Kafka/Redis/PG; rotas REST respondem (`/health` 200, `game` inválido 400, Redis fora 503); `selftest.py` confere a política de ranking. **Pendente:** E2E com broker/Redis/PG reais (itens 3/12) e a **tela** do leaderboard (item 7).
+- **✔ Implementado (v2):** serviço Flask em [score-service/](../../score-service/) — consumidor Kafka em thread de fundo ([consumer.py](../../score-service/consumer.py)) → materializa o ranking por minigame no **Redis** (sorted set) e grava o histórico no **PostgreSQL** (tabela `scores`, criada no boot) ([store.py](../../score-service/store.py)); expõe `GET /api/scores?game=jogoN` + `/health` ([app.py](../../score-service/app.py)). Política por minigame: Jogo 1 = total de vitórias (`ZINCRBY`); Jogo 2/3 = melhor pontuação (`ZADD GT`). Tudo por env ([config.py](../../score-service/config.py)); `Dockerfile` + `requirements.txt` prontos; serviço adicionado ao [docker-compose.yml](../../docker-compose.yml). O fim de partida **não** passa mais pelo Auth para a pontuação — flui pelo Kafka (o `Wins` do Jogo 1 segue como contador legado no Auth, em paralelo). **Validado:** deps instalam (venv Python 3.13), `app.py` importa e sobe degradando com elegância sem Kafka/Redis/PG; rotas REST respondem (`/health` 200, `game` inválido 400, Redis fora 503); `selftest.py` confere a política de ranking.
+- **✅ E2E validado (3ª rodada):** na stack Docker, o Score consumiu os eventos e materializou os **3 rankings** (lidos pela API via harness). Adicionados o endpoint **`GET /api/scores/player`** (recorde por jogador, para o Command Center) e **CORS** ([app.py](../../score-service/app.py)) para o frontend ler de outra origem.
 
 ### 4.4 🟠 Redis — cache do leaderboard (item 6)
 
 - **Situação:** ~~contêiner sobe; sem uso~~ → **em uso** pelo Score Service (falta a leitura E2E).
 - **Entregar:** ranking por minigame em Redis (sorted set), alimentado pelo Score Service.
 - **Aceite:** a leitura do leaderboard vem do Redis, não de varredura no PostgreSQL.
-- **🟡 Parcial (v2):** o Score Service grava o ranking por minigame em sorted sets `leaderboard:jogoN` (`ZINCRBY`/`ZADD GT`) e a rota `GET /api/scores` lê **direto do Redis** (`ZREVRANGE`), sem varrer o PostgreSQL ([score-service/store.py](../../score-service/store.py)). **Falta** validar a leitura E2E com Redis real e a **tela** que a consome (item 7).
+- **🟡 Parcial (v2):** o Score Service grava o ranking por minigame em sorted sets `leaderboard:jogoN` (`ZINCRBY`/`ZADD GT`) e a rota `GET /api/scores` lê **direto do Redis** (`ZREVRANGE`), sem varrer o PostgreSQL ([score-service/store.py](../../score-service/store.py)).
+- **✅ E2E validado (3ª rodada):** a API lê o ranking **direto do Redis** na stack Docker (sem varrer o PG) e usa `ZSCORE` para o recorde do jogador; a tela que consome existe (item 7).
 
 ### 4.5 🟠 gRPC síncrono — validação de JWT (item 8)
 
@@ -181,7 +184,8 @@ Verificação (atualizada após os itens 1/4/5): a **física saiu do gateway** e
 - **Situação:** ~~não há leaderboard no frontend nem no backend; só o contador `Wins`~~ → **implementado** (backend + tela).
 - **Entregar:** pontuação **por minigame** (não só "vitórias"); tela de leaderboard com acesso no dashboard (nome, pontuação, data), servida pelo Score Service.
 - **Aceite:** após uma partida, a pontuação obtida aparece no ranking do respectivo minigame.
-- **✔ Implementado (v2):** **backend** = `GET /api/scores` do Score Service (ranking por minigame a partir do Redis — item 4.3). **Frontend** = nova **tela de Ranking Global** acessível por botão no dashboard ([frontend/index.html](../../frontend/index.html): `openLeaderboard`/`loadLeaderboard`/`renderLeaderboard`, tela `leaderboard-container`), com uma coluna por jogo (Jogo 1 = vitórias; Jogo 2/3 = melhor pontuação). Endpoint configurável por `SCORE_PORT` em [frontend/config.js](../../frontend/config.js). **Degrada com elegância:** se o Score Service não estiver acessível (ex.: stack DEV sem Kafka/Redis), mostra aviso e **não quebra a v1**. **Validado:** data path write+read com Redis real (`fakeredis`, API `redis-py`: `ZINCRBY`/`ZADD GT`/`ZREVRANGE`) e o contrato HTTP que o frontend consome; sintaxe do JS do cliente conferida. **Pendente:** confirmação visual no navegador com dados reais (fase Docker/AWS, junto do E2E dos itens 4/5).
+- **✔ Implementado (v2):** **backend** = `GET /api/scores` do Score Service (ranking por minigame a partir do Redis — item 4.3). **Frontend** = nova **tela de Ranking Global** acessível por botão no dashboard ([frontend/index.html](../../frontend/index.html): `openLeaderboard`/`loadLeaderboard`/`renderLeaderboard`, tela `leaderboard-container`), com uma coluna por jogo (Jogo 1 = vitórias; Jogo 2/3 = melhor pontuação). Endpoint configurável por `SCORE_PORT` em [frontend/config.js](../../frontend/config.js). **Degrada com elegância:** se o Score Service não estiver acessível (ex.: stack DEV sem Kafka/Redis), mostra aviso e **não quebra a v1**. **Validado:** data path write+read com Redis real (`fakeredis`, API `redis-py`: `ZINCRBY`/`ZADD GT`/`ZREVRANGE`) e o contrato HTTP que o frontend consome; sintaxe do JS do cliente conferida.
+- **✅ E2E validado (3ª rodada):** na stack Docker, após partidas a pontuação **aparece no ranking** do minigame (**confirmado pelo usuário**). Tela ajustada: **top 5** por jogo, **recorde pessoal no Command Center** (`GET /api/scores/player`) e layout do bloco corrigido (cabe o Jogo 3).
 
 > **Nota:** o requisito de [Possiveis_problemas_v1.md](../v1/Possiveis_problemas_v1.md) — *"a pontuação de cada jogo deve ser salva permanentemente ao perfil"* — hoje é cumprido só parcialmente (contador `Wins` agregado, sem pontuação por jogo).
 
@@ -201,6 +205,7 @@ Verificação (atualizada após os itens 1/4/5): a **física saiu do gateway** e
 - **Situação:** coexistem `auth-service` (C# + PostgreSQL + **BCrypt**, usado no compose) e `auth-service-lite` (Node + JSON + **SHA-256 sem salt**, fora do compose). Regras divergentes (só o lite valida tamanho) e segurança diferente.
 - **Entregar:** definir um como oficial; se o lite for só para dev sem Docker, documentar e alinhar validações; senão, removê-lo.
 - **Aceite:** uma única fonte de verdade de autenticação.
+- **✔ Concluído (v2):** **`auth-service` (C#) é o canônico** (BCrypt + PostgreSQL + EF Core, no compose) — confirmado que **compila** neste ambiente (`dotnet build` → 0 erros, agora com .NET 8). O `auth-service-lite` foi **rebaixado a espelho de DEV** e **alinhado** ao canônico em [auth-service-lite/server.js](../../auth-service-lite/server.js): hashing por **bcrypt** (`bcryptjs`, era SHA-256 sem salt), contrato `/login → { token }` (igual ao C#), **TTL de 2h** e mesmas claims/issuer/audience; validação 4–30 já existia. Cabeçalho do arquivo documenta a decisão. **Validado** (lite no ar): register válido → 201, username `<4` → **400**, login devolve só `{token}`, token com `sub`/`iss=spaceship_auth`/`aud=spaceship_gateway`/**TTL 2h**, e o hash gravado começa com **`$2a$`** (bcrypt). `users.json` resetado (hashes SHA-256 legados são incompatíveis — ver README).
 
 ### 5.3 🟡 Regra de vitória do Jogo 1 diverge do GDD (9.3)
 
@@ -251,12 +256,14 @@ Verificação (atualizada após os itens 1/4/5): a **física saiu do gateway** e
 - **Situação:** só há particionamento **funcional** lógico dos 3 jogos.
 - **Entregar:** particionar as tabelas de pontuação (ex.: por minigame).
 - **Aceite:** consultas de ranking por minigame atingem só a partição relevante.
+- **🟡 Implementado (v2):** a tabela `scores` ([score-service/store.py](../../score-service/store.py) `init_schema`) virou **particionada por LISTA** da coluna `game` — partições físicas `scores_jogo1|jogo2|jogo3` + uma **DEFAULT** (`scores_outros`) para minigames futuros; a `PRIMARY KEY` inclui `game` (exigência do Postgres). A escrita vai na tabela-pai e o Postgres roteia para a partição certa; `partition_for(game)` espelha o roteamento (observabilidade/teste). **Validado offline** ([selftest_partition.py](../../score-service/selftest_partition.py)): roteamento jogoN→partição, DEFAULT para desconhecido e a distribuição do fixture (`test-data/`) por partição. **Pendente:** E2E com PG real (partition pruning via `EXPLAIN`) — fase Docker/AWS (itens 3/12).
 
 ### 6.3 🟠 Bateria de testes na AWS EC2 (item 12)
 
 - **Situação:** depende do deploy (item 3); ainda não executada.
 - **Entregar:** após o deploy distribuído, nova bateria de testes de rede, latência (WebRTC), replicação, retenção do Kafka e estresse.
 - **Aceite:** relatório de testes em produção (incluindo derrubar uma EC2 de engine e uma réplica de banco).
+- **🟡 Parcial (v2):** entregues e validados **localmente** dois componentes do item 12: (a) **clientes simulados (req. 4.2)** em [load-test/](../../load-test/) — bots autenticam no Auth, conectam no gateway e jogam os 3 minigames em paralelo (8 bots → **6 partidas concorrentes, 0 erros**; **isolamento de falha** demonstrado: derrubar o engine do Jogo 1 não afeta Jogo 2/3, que seguem concluindo, e o Jogo 1 degrada sem crash); (b) **dados de teste versionados (req. 4.8)** em [test-data/](../../test-data/) (usuários seed + fixture `match-completed` + ranking esperado, com [selftest_dataset.py](../../score-service/selftest_dataset.py)). **Pendente:** a bateria **na AWS** (depende do item 3) — E2E Kafka/Score (retenção), latência WebRTC, replicação — mais o cenário de demo roteirizado (4.3) e o vídeo (4.9).
 
 ---
 
@@ -277,26 +284,26 @@ Verificação (atualizada após os itens 1/4/5): a **física saiu do gateway** e
 - [ ] Os 3 jogos rodam em **engines isolados** ✅ (item 1 — 3 processos independentes, isolamento validado), cada um em sua **EC2** ⛔ (item 3 — pendente).
 - [ ] O canal de jogo usa **WebRTC** 🟡 (item 2 — hot path no DataChannel com fallback Socket.io implementado; falta validar no navegador + medir latência); WS/REST para lobby/sinalização/login ✅.
 - [ ] **Cada serviço em uma EC2 distinta**, com **Load Balancer** para HTTP/sinalização e **matchmaking** distribuindo as partidas entre engines (item 3).
-- [ ] Fim de partida flui por **Kafka → Score Service → Redis/PostgreSQL** 🟡 (itens 4, 5, 6 — produtor/consumidor e persistência implementados; tolerância a falha por commit-após-persistir; falta o teste E2E com broker real).
-- [ ] Existe **leaderboard global por minigame** ponta a ponta 🟡 (item 7 — backend `GET /api/scores` + tela no dashboard implementados; falta a confirmação visual no navegador com dados reais).
+- [x] Fim de partida flui por **Kafka → Score Service → Redis/PostgreSQL** ✅ (itens 4, 5, 6 — **validado E2E na stack Docker**: partidas publicam, Score consome e materializa Redis+PG; produtor resiliente, tolerância a falha por commit-após-persistir).
+- [x] Existe **leaderboard global por minigame** ponta a ponta ✅ (item 7 — backend `GET /api/scores` + tela "Ranking Global" (top 5) + recorde pessoal no Command Center; **confirmado visualmente pelo usuário**).
 - [ ] Validação de JWT via **gRPC** ao Auth (item 8).
-- [ ] Validações de usuário/senha **server-side** no auth canônico; segredos por variável de ambiente (itens 9.1 ✅, 9.2 ⛔, 9.6 ✅). *(falta só 9.2: decidir o auth canônico)*
+- [x] Validações de usuário/senha **server-side** no auth canônico; segredos por variável de ambiente; **auth canônico decidido** (itens 9.1 ✅, 9.2 ✅, 9.6 ✅). *(C# oficial — compila aqui; lite alinhado a bcrypt/`{token}`/2h)*
 - [ ] Sem manifestos k8s, sem código morto, sem divergência código×GDD, links da doc válidos (itens 9.3 ✅, 9.4 ✅, 9.5 ✅, 9.7 🟡). *(falta só 9.7: varredura de links em Docs/v1 + guia de deploy AWS — acoplado ao item 3)*
-- [ ] PostgreSQL com **replicação** e **particionamento** (itens 10, 11).
+- [ ] PostgreSQL com **replicação** (item 10 ⛔) e **particionamento** (item 11 🟡 — `scores` particionada por minigame, validada offline; falta E2E em PG real).
 
 ### 8.2 Conformidade com a especificação do trabalho
 
 > Espelha o [Checklist de Requisitos da Especificação](../Requisitos%20do%20trabalho/Checklist%20de%20Requisitos%20da%20Especificação.md). Os itens técnicos acima já cobrem as características obrigatórias (1.x), os paradigmas async/pub-sub (2.3, 2.4) e a 3ª linguagem (Python no Score). Faltam, além deles, os **entregáveis de demonstração**:
 
 - [ ] **Serviço acessível na Internet** via deploy público na AWS (req. 1.1 → item 3).
-- [ ] **Interação síncrona (gRPC)** + **assíncrona/messaging (Kafka)** demonstráveis (reqs. 1.5, 2.3, 2.4 → itens 8, 4, 5) — messaging/pub-sub via Kafka **implementado** (itens 4, 5); falta o **gRPC** (item 8) e o teste E2E.
+- [ ] **Interação síncrona (gRPC)** + **assíncrona/messaging (Kafka)** demonstráveis (reqs. 1.5, 2.3, 2.4 → itens 8, 4, 5) — messaging/pub-sub via Kafka **validado E2E** (itens 4, 5 ✅); **falta o gRPC** (item 8) para a parte síncrona.
 - [ ] **Replicação e particionamento** de dados exercitados na demo (reqs. 1.6, 1.7 → itens 10, 11).
-- [ ] **Clientes simulados** (bots/script de carga) para exercitar concorrência sistematicamente (req. 4.2).
-- [ ] **Cenário de demonstração** roteirizado, cobrindo concorrência, sync/async, replicação, particionamento e tolerância a falhas (req. 4.3).
+- [x] **Clientes simulados** (bots/script de carga) para exercitar concorrência sistematicamente (req. 4.2 → [load-test/](../../load-test/); validado localmente).
+- [ ] **Cenário de demonstração** roteirizado, cobrindo concorrência, sync/async, replicação, particionamento e tolerância a falhas (req. 4.3). *(parcial: [load-test/](../../load-test/) já roteiriza concorrência + tolerância a falha/isolamento; falta sync gRPC e replicação na AWS)*
 - [ ] **Demonstração executada na AWS EC2** (req. 4.4 → itens 3, 12).
 - [ ] **Documentação de arquitetura e implementação** atualizada para a versão final (req. 4.6).
 - [ ] **README** atualizado para o deploy distribuído (req. 4.7 → item 9.7).
-- [ ] **Dados de teste** versionados (req. 4.8).
+- [x] **Dados de teste** versionados (req. 4.8 → [test-data/](../../test-data/): usuários seed + fixture de ranking + oráculo, com selftest).
 - [ ] **Vídeo de demonstração** com participação de todos os integrantes (req. 4.9).
 
 > Fora de escopo nesta versão (por decisão): criptografia do tráfego entre serviços (TLS/HTTPS/WSS) e orquestração via Kubernetes.

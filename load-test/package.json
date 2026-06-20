@@ -1,0 +1,13 @@
+{
+  "name": "spaceship-load-test",
+  "version": "1.0.0",
+  "description": "Clientes simulados (bots) para exercitar concorrência e o ciclo de partida do Spaceship (requisito 4.2).",
+  "main": "run.js",
+  "scripts": {
+    "start": "node run.js",
+    "seed": "node seed.js"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.7.2"
+  }
+}

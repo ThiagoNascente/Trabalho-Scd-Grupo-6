@@ -43,8 +43,12 @@ sudo docker compose down
 
 ## 🏗️ Estrutura do Projeto
 
-- `/auth-service`: API REST em ASP.NET Core para Login e Registro (JWT).
+- `/auth-service`: API REST em ASP.NET Core para Login e Registro (JWT). **Serviço de auth canônico** (BCrypt + PostgreSQL).
+- `/auth-service-lite`: espelho do Auth em Node.js (users.json) para rodar **sem Docker** em DEV — alinhado ao canônico (bcrypt, mesmo contrato/claims).
 - `/game-gateway`: Gateway/Lobby em Node.js — autentica, faz matchmaking e **roteia** (relay): para cada cliente abre uma conexão a cada Game Engine. **Não roda física.**
 - `/game-engine`: Game Engine em Node.js — roda a física de **um** jogo. A mesma imagem serve os 3, escolhendo o jogo pela variável `GAME` (`jogo1`/`jogo2`/`jogo3`). São 3 processos independentes (Particionamento Funcional: derrubar um não afeta os outros). Hospeda também o **canal de jogo via WebRTC** (geckos.io): inputs e estado de partida trafegam por DataChannel (UDP) direto cliente↔engine, com fallback automático para Socket.io.
+- `/score-service`: Serviço de pontuação em **Python/Flask** (3ª linguagem) — consome `match-completed` do **Kafka**, materializa o ranking por minigame no **Redis** e grava o histórico no **PostgreSQL** (tabela `scores` **particionada por minigame**). Expõe `GET /api/scores`.
 - `/frontend`: Aplicação client-side (HTML/CSS/JS) para interação.
+- `/load-test`: **Clientes simulados** (bots) que exercitam concorrência jogando os 3 minigames em paralelo (req. 4.2). Ver [load-test/README.md](load-test/README.md).
+- `/test-data`: **Dados de teste** versionados — usuários seed e fixture de ranking (req. 4.8). Ver [test-data/README.md](test-data/README.md).
 - `docker-compose.yml`: Infraestrutura de desenvolvimento (todos os serviços).

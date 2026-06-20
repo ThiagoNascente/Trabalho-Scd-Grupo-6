@@ -21,6 +21,20 @@ log = logging.getLogger("score.store")
 
 GAMES = ("jogo1", "jogo2", "jogo3")
 
+# Particionamento de dados por minigame (item 11). A tabela `scores` é
+# PARTICIONADA POR LISTA da coluna `game`: cada jogo tem sua própria partição
+# física, então consultas por minigame (WHERE game='jogoN') só varrem a
+# partição relevante (partition pruning). Minigames futuros caem na DEFAULT.
+PARTITIONS = {"jogo1": "scores_jogo1", "jogo2": "scores_jogo2", "jogo3": "scores_jogo3"}
+DEFAULT_PARTITION = "scores_outros"
+
+
+def partition_for(game):
+    """Partição (tabela física) que recebe as linhas de um minigame.
+    O PostgreSQL faz esse roteamento sozinho no INSERT; esta função existe para
+    documentação/observabilidade e para o selftest de particionamento."""
+    return PARTITIONS.get(game, DEFAULT_PARTITION)
+
 
 def leaderboard_key(game):
     return f"leaderboard:{game}"
@@ -74,21 +88,36 @@ class Store:
     def init_schema(self):
         conn = self.pg()
         with conn.cursor() as cur:
+            # Tabela PARTICIONADA POR LISTA do minigame (item 11). A chave de
+            # particionamento (`game`) precisa fazer parte da PRIMARY KEY.
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS scores (
-                    id          SERIAL PRIMARY KEY,
+                    id          BIGINT GENERATED ALWAYS AS IDENTITY,
                     game        VARCHAR(16)  NOT NULL,
                     username    VARCHAR(64)  NOT NULL,
                     score       INTEGER      NOT NULL DEFAULT 0,
                     won         BOOLEAN      NOT NULL DEFAULT FALSE,
-                    finished_at TIMESTAMPTZ  NOT NULL DEFAULT now()
-                );
+                    finished_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                    PRIMARY KEY (id, game)
+                ) PARTITION BY LIST (game);
                 """
             )
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_scores_game ON scores (game);")
+            # Uma partição física por minigame (jogo1/jogo2/jogo3). `game` vem de
+            # uma constante interna (sem injeção).
+            for game, part in PARTITIONS.items():
+                cur.execute(
+                    f"CREATE TABLE IF NOT EXISTS {part} PARTITION OF scores FOR VALUES IN ('{game}');"
+                )
+            # Partição DEFAULT: acolhe minigames futuros sem quebrar a escrita.
+            cur.execute(
+                f"CREATE TABLE IF NOT EXISTS {DEFAULT_PARTITION} PARTITION OF scores DEFAULT;"
+            )
+            # Índice por melhor pontuação propagado a cada partição (top por jogo
+            # direto da fonte de verdade; a leitura quente vem do Redis).
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_scores_score ON scores (score DESC);")
         conn.commit()
-        log.info("schema 'scores' pronto no PostgreSQL.")
+        log.info("schema 'scores' (particionado por minigame) pronto no PostgreSQL.")
 
     # ---- Escrita (consumidor) -------------------------------------------
     def update_ranking(self, event):
@@ -118,7 +147,8 @@ class Store:
                      bool(p.get("won")), event.get("finishedAt")),
                 )
         conn.commit()
-        log.info("partida registrada: game=%s players=%d", event.get("game"), len(event.get("players") or []))
+        log.info("partida registrada: game=%s -> partição %s players=%d",
+                 event.get("game"), partition_for(event.get("game")), len(event.get("players") or []))
 
     # ---- Leitura (REST) --------------------------------------------------
     def leaderboard(self, game, limit=10):
@@ -126,3 +156,13 @@ class Store:
         r = self.redis()
         rows = r.zrevrange(leaderboard_key(game), 0, max(0, limit - 1), withscores=True)
         return [{"username": m, "score": int(s)} for (m, s) in rows]
+
+    def player_record(self, username):
+        """Recorde do jogador em cada minigame (ZSCORE no sorted set do ranking).
+        Retorna {jogoN: int|None}; None = jogador ainda sem registro no jogo."""
+        r = self.redis()
+        out = {}
+        for g in GAMES:
+            s = r.zscore(leaderboard_key(g), username)
+            out[g] = int(s) if s is not None else None
+        return out

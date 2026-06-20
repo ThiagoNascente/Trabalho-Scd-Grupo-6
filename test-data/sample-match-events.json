@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "description": "Fixture determinístico de eventos 'match-completed' (o payload que cada Game Engine publica no Kafka ao fim da partida). Serve para validar OFFLINE a política de ranking do Score Service e o particionamento por minigame (itens 4, 5, 11) sem precisar de Kafka/Redis/PG. Esquema: { game, finishedAt, players:[{username, score, won}] }.",
+  "policy": {
+    "jogo1": "ranking = total de VITÓRIAS (ZINCRBY +1 por vitória; só o vencedor pontua)",
+    "jogo2": "ranking = MELHOR pontuação (ZADD GT; mantém o máximo). Pontuação compartilhada na run cooperativa.",
+    "jogo3": "ranking = MELHOR pontuação (ZADD GT; mantém o máximo). Pontuação compartilhada na run cooperativa."
+  },
+  "events": [
+    { "game": "jogo1", "finishedAt": "2026-06-19T10:00:00.000Z", "players": [ { "username": "nova", "score": 3, "won": true }, { "username": "vega", "score": 0, "won": false } ] },
+    { "game": "jogo1", "finishedAt": "2026-06-19T10:05:00.000Z", "players": [ { "username": "nova", "score": 3, "won": true }, { "username": "orion", "score": 0, "won": false } ] },
+    { "game": "jogo1", "finishedAt": "2026-06-19T10:10:00.000Z", "players": [ { "username": "vega", "score": 3, "won": true }, { "username": "orion", "score": 0, "won": false } ] },
+
+    { "game": "jogo2", "finishedAt": "2026-06-19T11:00:00.000Z", "players": [ { "username": "nova", "score": 120, "won": false }, { "username": "vega", "score": 120, "won": false } ] },
+    { "game": "jogo2", "finishedAt": "2026-06-19T11:05:00.000Z", "players": [ { "username": "nova", "score": 180, "won": false } ] },
+    { "game": "jogo2", "finishedAt": "2026-06-19T11:10:00.000Z", "players": [ { "username": "orion", "score": 200, "won": false } ] },
+    { "game": "jogo2", "finishedAt": "2026-06-19T11:15:00.000Z", "players": [ { "username": "orion", "score": 50, "won": false } ] },
+
+    { "game": "jogo3", "finishedAt": "2026-06-19T12:00:00.000Z", "players": [ { "username": "vega", "score": 500, "won": true } ] },
+    { "game": "jogo3", "finishedAt": "2026-06-19T12:05:00.000Z", "players": [ { "username": "nova", "score": 150, "won": false } ] },
+    { "game": "jogo3", "finishedAt": "2026-06-19T12:10:00.000Z", "players": [ { "username": "vega", "score": 300, "won": false } ] }
+  ]
+}
