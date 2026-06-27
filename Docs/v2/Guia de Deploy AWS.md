@@ -19,25 +19,38 @@
 
 ---
 
-## 1. Topologia (1 serviço por EC2)
+## 1. Topologia — quantas máquinas e o nome de cada uma
 
-| # | EC2 (papel) | Script | Porta(s) | Quem acessa |
+**São 10 instâncias EC2** (uma por serviço) — ou **11** se você também subir a
+réplica opcional do Postgres (item 10). Crie todas iguais (Ubuntu 22.04/24.04) e,
+no console, dê a cada uma o **nome da coluna `Nome`** abaixo na **tag `Name`** (o
+campo "Name" que aparece na lista de instâncias, no lápis de edição). Esses nomes
+batem com o do serviço systemd (`spaceship-<algo>`), então depois fica fácil saber
+em qual máquina você está e onde estão os logs.
+
+| # | Nome da instância (tag **Name**) | Script que roda nela | Porta(s) que ela usa | Quem acessa essas portas |
 |---|---|---|---|---|
-| 1 | **postgres** (dados compartilhados) | `postgres.sh primary` | 5432 | Auth + Score (privado) |
-| 2 | **redis** (ranking / memória compartilhada) | `redis.sh` | 6379 | Score (privado) |
-| 3 | **kafka** (mensageria) | `kafka.sh` | 9092 | Engines + Score (privado) |
-| 4 | **auth** (C#) | `auth.sh` | 5000 REST + 5005 gRPC | navegador (REST) + gateway/engines (privado) |
-| 5 | **engine-jogo1** | `engine.sh jogo1` | 4001 + 5001 + UDP 20001-20030 | gateway (4001 privado) + navegador (WebRTC) |
-| 6 | **engine-jogo2** | `engine.sh jogo2` | 4002 + 5002 + UDP | idem |
-| 7 | **engine-jogo3** | `engine.sh jogo3` | 4003 + 5003 + UDP | idem |
-| 8 | **gateway** (Node) | `gateway.sh` | 3000 | navegador |
-| 9 | **score** (Python) | `score.sh` | 8000 | navegador (lê o ranking) |
-| 10 | **frontend** (Nginx) | `frontend.sh` | 80 | navegador |
-| 11 | **postgres-replica** *(opcional, item 10)* | `postgres.sh replica` | 5432 | Score-leitura (privado) |
+| 1 | `spaceship-postgres` | `postgres.sh primary` | TCP 5432 | Auth + Score (rede interna) |
+| 2 | `spaceship-redis` | `redis.sh` | TCP 6379 | Score (rede interna) |
+| 3 | `spaceship-kafka` | `kafka.sh` | TCP 9092 (+9093 interno) | Engines + Score (rede interna) |
+| 4 | `spaceship-auth` | `auth.sh` | TCP 5000 (REST) + TCP 5005 (gRPC) | navegador (5000) · gateway (5005, rede interna) |
+| 5 | `spaceship-engine-jogo1` | `engine.sh jogo1` | TCP 4001 + TCP 5001 + UDP 20001-20030 | gateway (4001, rede interna) · navegador (5001 + UDP) |
+| 6 | `spaceship-engine-jogo2` | `engine.sh jogo2` | TCP 4002 + TCP 5002 + UDP 20001-20030 | idem |
+| 7 | `spaceship-engine-jogo3` | `engine.sh jogo3` | TCP 4003 + TCP 5003 + UDP 20001-20030 | idem |
+| 8 | `spaceship-gateway` | `gateway.sh` | TCP 3000 | navegador |
+| 9 | `spaceship-score` | `score.sh` | TCP 8000 | navegador (lê o ranking) |
+| 10 | `spaceship-frontend` | `frontend.sh` | TCP 80 | navegador |
+| 11 | `spaceship-postgres-replica` *(opcional, item 10)* | `postgres.sh replica` | TCP 5432 | Score-leitura (rede interna) |
 
-> As máquinas **1, 2 e 3** são o **estado compartilhado** do sistema distribuído
-> (banco, cache de ranking e fila de eventos). É nelas que a "memória
-> compartilhada" entre as partidas e os jogadores realmente vive.
+> As máquinas **1, 2 e 3** (`spaceship-postgres`, `spaceship-redis`, `spaceship-kafka`)
+> são o **estado compartilhado** do sistema distribuído (banco, cache de ranking e
+> fila de eventos). É nelas que a "memória compartilhada" entre as partidas e os
+> jogadores realmente vive.
+>
+> **Dois tipos de acesso, lidos assim:** "**rede interna**" = só as outras máquinas
+> alcançam, pelo **IP privado** da VPC — essas portas **não** ficam abertas para a
+> internet (é o §3 que garante isso). "**navegador**" = precisa de uma **porta
+> pública** aberta.
 
 ---
 
@@ -53,45 +66,106 @@
 
 ---
 
-## 3. Security Groups (portas)
+## 3. Security Groups (firewall) — passo a passo
 
-### Opção A — simples (recomendada p/ começar): um SG único
+> **O conceito que destrava tudo:** o Security Group (SG) é o firewall da AWS. **Toda
+> porta já nasce FECHADA** para a internet. Ela só abre quando você cria uma **regra
+> de entrada (inbound)** liberando-a. Ou seja — você **não "fecha" porta nenhuma**;
+> você **só abre as poucas que o navegador precisa**, e todo o resto continua
+> fechado sozinho. Guarde essa frase: *abrir = criar regra; não expor = não criar a
+> regra.*
 
-Crie **um** Security Group (ex.: `spaceship-sg`) e coloque **todas** as EC2 nele:
+Vamos usar **um único Security Group** para as 10 instâncias. No total você vai
+criar **8 regras de entrada**: **1 interna** (as máquinas conversando entre si) +
+**7 públicas** (o que vem da internet). Só isso.
 
-1. **Regra interna (malha privada):** *Tipo* `All traffic` · *Origem* = **o próprio `spaceship-sg`**. Isso deixa as máquinas conversarem entre si em qualquer porta (banco, Redis, Kafka, gRPC, relay dos engines) sem abrir nada para a internet.
-2. **Regras públicas (o que o navegador precisa):**
+### 3.1 Criar o Security Group e colar as instâncias nele
 
-| Tipo | Porta | Origem | Por quê |
-|---|---|---|---|
-| SSH | 22 | **Seu IP** | administrar |
-| HTTP | 80 | 0.0.0.0/0 | frontend |
-| TCP | 3000 | 0.0.0.0/0 | gateway (Socket.io) |
-| TCP | 5000 | 0.0.0.0/0 | login (Auth REST) |
-| TCP | 5001-5003 | 0.0.0.0/0 | sinalização WebRTC dos engines |
-| TCP | 8000 | 0.0.0.0/0 | leitura do ranking (Score) |
-| UDP | 20001-20030 | 0.0.0.0/0 | mídia WebRTC dos engines |
+1. EC2 → menu lateral **Security Groups** → **Create security group**.
+2. **Security group name:** `spaceship-sg` · **Description:** `Spaceship` · **VPC:** a
+   **VPC padrão** (a mesma das instâncias).
+3. Clique em **Create security group** (por enquanto sem regras — vamos adicioná-las
+   nos passos 3.2 e 3.3).
+4. **Coloque as 10 instâncias dentro deste SG:** na lista de instâncias, selecione
+   uma → **Actions → Security → Change security groups** → escolha `spaceship-sg` →
+   **Add → Save**. Repita para cada instância. *(Quem cria as EC2 já pode escolher
+   `spaceship-sg` na hora.)*
 
-> Abrir essas portas públicas em todas as máquinas é inofensivo: onde não há
-> serviço escutando, a porta simplesmente não responde. **Não** exponha 5432
-> (Postgres), 6379 (Redis), 9092 (Kafka) nem 5005 (gRPC) à internet — eles ficam
-> só na malha interna (regra 1).
+### 3.2 Regra 1 — malha interna (as máquinas falando entre si)
 
-### Opção B — restritiva (least-privilege, melhor para a nota)
+Esta única regra é o que faz o banco, o Redis, o Kafka e o gRPC funcionarem **sem
+expor nada à internet**. Em `spaceship-sg` → aba **Inbound rules** → **Edit inbound
+rules** → **Add rule**, e preencha exatamente assim:
 
-Um SG por serviço, abrindo cada porta **apenas** para a origem que a usa:
+| Campo no console | O que selecionar/digitar |
+|---|---|
+| **Type** | `All traffic` |
+| **Protocol** | `All` *(preenche sozinho)* |
+| **Port range** | `All` *(preenche sozinho)* |
+| **Source** | `Custom` → comece a digitar `sg-` e **escolha o próprio `spaceship-sg`** |
 
-| EC2 | Inbound | Origem |
+Em português: *"qualquer máquina que esteja neste SG pode falar com as outras em
+qualquer porta"*. Como a origem é o **próprio SG** (e **não** `0.0.0.0/0`), isso
+vale **só entre as suas instâncias** — a internet não entra por aqui.
+
+### 3.3 Regras 2 a 8 — públicas (o que vem da internet)
+
+Continue em **Edit inbound rules** e clique em **Add rule** **uma vez para cada
+linha** abaixo. A coluna **Type** é exatamente a opção que você escolhe no menu
+suspenso do console:
+
+| Regra | Type (menu do console) | Protocolo | Port range | Source | Para que serve | Máquina que de fato escuta |
+|---|---|---|---|---|---|---|
+| 2 | **SSH** | TCP | `22` | **My IP** | conectar via SSH para administrar | todas |
+| 3 | **HTTP** | TCP | `80` | `0.0.0.0/0` | abrir o site no navegador | `spaceship-frontend` |
+| 4 | **Custom TCP** | TCP | `3000` | `0.0.0.0/0` | jogo em tempo real (gateway / Socket.io) | `spaceship-gateway` |
+| 5 | **Custom TCP** | TCP | `5000` | `0.0.0.0/0` | login e cadastro (Auth REST) | `spaceship-auth` |
+| 6 | **Custom TCP** | TCP | `5001-5003` | `0.0.0.0/0` | "aperto de mão" do WebRTC (engines) | os 3 engines |
+| 7 | **Custom TCP** | TCP | `8000` | `0.0.0.0/0` | ler o ranking global (Score) | `spaceship-score` |
+| 8 | **Custom UDP** | **UDP** | `20001-20030` | `0.0.0.0/0` | mídia/dados do WebRTC em tempo real (engines) | os 3 engines |
+
+Quatro avisos que evitam os tropeços mais comuns:
+
+- **Type x Protocolo:** ao escolher `SSH` ou `HTTP`, o console **preenche** o
+  protocolo e a porta sozinho. Nas demais, escolha **`Custom TCP`** (ou **`Custom
+  UDP`** na regra 8) e **digite a porta** no campo *Port range*.
+- **A regra 8 é a ÚNICA em UDP.** Se você criá-la como `Custom TCP` por engano, o
+  WebRTC não consegue abrir o canal de mídia/dados.
+- **`0.0.0.0/0`** = "qualquer lugar da internet". **`My IP`** = só o seu IP atual —
+  use-o na regra 2 (SSH). Se sua internet trocar de IP e o SSH parar, edite a regra 2
+  e clique em **My IP** de novo.
+- **"Mas isso abre a porta 80 nas 10 máquinas!"** Sim, e é **inofensivo**: o SG é
+  compartilhado, mas só a `spaceship-frontend` tem algo escutando na 80; nas outras a
+  porta simplesmente **não responde**. O mesmo vale para 3000, 5000, 8000 etc.
+
+Pronto: clique em **Save rules**. Você deve ver **8 regras de entrada** (1 interna +
+7 públicas).
+
+### 3.4 As portas que você NÃO abre — e por que não precisa fazer nada
+
+Repare que a tabela do 3.3 **não tem** linha para o banco, o Redis, o Kafka nem o
+gRPC. **Isso é de propósito.** E aqui está o ponto que costuma confundir: você **não
+precisa "fechar" essas portas** — como você **nunca criou uma regra pública** para
+elas, elas **já estão fechadas para a internet** desde o começo. Elas continuam
+funcionando entre as máquinas porque a **Regra 1 (malha interna)** libera qualquer
+porta **dentro do SG**:
+
+| Porta | Serviço | Fica acessível só por... |
 |---|---|---|
-| postgres | 5432 | SG do auth, do score e da réplica |
-| redis | 6379 | SG do score |
-| kafka | 9092 | SG dos 3 engines e do score |
-| auth | 5000 (0.0.0.0/0) · 5005 | 5005 só do SG do gateway |
-| engine-jogoN | 400N (SG do gateway) · 500N e UDP 20001-20030 (0.0.0.0/0) | — |
-| gateway | 3000 | 0.0.0.0/0 |
-| score | 8000 | 0.0.0.0/0 |
-| frontend | 80 | 0.0.0.0/0 |
-| todas | 22 | seu IP |
+| TCP **5432** | PostgreSQL | outras máquinas do SG (Regra 1) |
+| TCP **6379** | Redis | outras máquinas do SG (Regra 1) |
+| TCP **9092** + **9093** | Kafka (cliente + controller) | outras máquinas do SG (Regra 1) |
+| TCP **5005** | Auth — gRPC (item 8) | outras máquinas do SG (Regra 1) |
+| TCP **4001-4003** | relay engine↔gateway (Socket.io interno) | o `spaceship-gateway` (Regra 1) |
+
+Resumindo a regra mental: **"expor uma porta" = criar uma regra com origem
+`0.0.0.0/0`** para ela. Como você nunca digita 5432 / 6379 / 9092 / 5005 / 4001-4003
+na lista pública (3.3), elas ficam **invisíveis para a internet**, mas **vivas dentro
+da VPC**. Não há botão de "fechar" — o fechado é o estado padrão.
+
+> *Existe um modo mais rígido (um SG por serviço, abrindo cada porta só para a
+> origem exata que a usa). É o ideal em produção, mas dá bastante trabalho extra e
+> **não é necessário** para esta entrega — por isso este guia fica no SG único acima.*
 
 ---
 
@@ -244,10 +318,10 @@ Religue com `sudo systemctl start spaceship-engine-jogo1`.
 
 - **Estado/logs:** `systemctl status spaceship-<svc>` · `journalctl -u spaceship-<svc> -f`.
 - **Reaplicar config:** editou o `env.aws`? rode o script do serviço de novo (idempotente).
-- **Kafka não conecta:** confira `advertised.listeners` (= IP **privado** da EC2 do Kafka) e o SG liberando 9092 para os engines/score. Logs do engine: `journalctl -u spaceship-engine-jogo2 | grep -i kafka` → `produtor conectado`.
+- **Kafka não conecta:** confira `advertised.listeners` (= IP **privado** da EC2 do Kafka) e se as máquinas estão todas no `spaceship-sg` — é a **Regra 1** (malha interna) que libera o 9092 entre engines/score (não há regra pública de 9092). Logs do engine: `journalctl -u spaceship-engine-jogo2 | grep -i kafka` → `produtor conectado`.
 - **Ranking vazio:** só partidas **novas** contam; reabra a tela "Ranking Global". Veja `journalctl -u spaceship-score -f` ao encerrar uma partida.
 - **CORS no console do navegador:** o Score libera `*`; confira o `SCORE_HOST` no `config.js` gerado (`cat /var/www/html/config.js` na EC2 do frontend).
-- **WebRTC não abre (NAT):** é o ponto avançado do item 2. A faixa UDP precisa estar aberta no SG do engine; mesmo sem WebRTC, o jogo roda via **Socket.io** (fallback). Medir a latência WebRTC×WS fica como validação opcional.
+- **WebRTC não abre (NAT):** é o ponto avançado do item 2. A faixa UDP precisa estar aberta (**regra 8** do `spaceship-sg`, `Custom UDP 20001-20030`); mesmo sem WebRTC, o jogo roda via **Socket.io** (fallback). Medir a latência WebRTC×WS fica como validação opcional.
 
 ---
 
