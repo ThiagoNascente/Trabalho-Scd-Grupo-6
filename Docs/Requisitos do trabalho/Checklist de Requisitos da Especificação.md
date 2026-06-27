@@ -17,12 +17,14 @@
 
 > **Atualização 2026-06-19 (v2, 3ª rodada):** stack Docker completa **validada E2E** — o fluxo `engine → Kafka → Score → Redis → API → tela` rodou ao vivo (3 rankings populados via harness, **confirmado visualmente pelo usuário**), após corrigir o **CORS** do Score e tornar o **produtor Kafka resiliente**. UI: **recorde pessoal no Command Center** (`/api/scores/player`) + ranking **top 5**. Reflexo: **2.3, 2.4 e 1.2 🟡→✅**; 1.5/1.7 reforçados (assíncrono/consistência eventual validados E2E — falta só o gRPC e a réplica). Placar geral: **16 ✅ / 5 🟡 / 3 ⛔**. Doc consolidada: HANDOFF removido (absorvido no Rastreio), `run.md` + `dev-stack.sh` adicionados.
 
+> **Atualização 2026-06-27 (v2, 4ª rodada):** **gRPC síncrono (item 8) implementado e validado** — `ValidateToken` no Auth C# (assinatura + existência do usuário/revogação) + cliente no gateway com fallback local ([authClient.js](../../game-gateway/authClient.js)); `dotnet build` OK + cliente em 5 cenários. **Deploy distribuído preparado SEM Docker:** scripts nativos por serviço em [`deploy/aws/`](../../deploy/aws/) (systemd, 1 serviço por EC2) + [Guia de Deploy AWS](../v2/Guia%20de%20Deploy%20AWS.md) (Security Groups, ordem de subida e bateria de testes) + hosts por serviço no [config.js](../../frontend/config.js); **v1 marcada como histórica**. Reflexo: **1.5 🟡→✅** (síncrono gRPC + assíncrono). Itens 3/10 → 🟡 (prontos para subir; falta o usuário executar na AWS). Placar geral: **17 ✅ / 4 🟡 / 3 ⛔**.
+
 ---
 
 ## 1. Características obrigatórias do sistema (válidas para qualquer cenário)
 
 - [ ] **1.1 — Serviço acessível a múltiplos clientes na Internet.** ⛔
-  Hoje roda em `localhost`/LAN via [docker-compose.yml](../../docker-compose.yml); o cliente já suporta host remoto ([frontend/config.js](../../frontend/config.js)), mas **ainda não há deploy público na AWS**. → Plano v2 item 3, 12.
+  Hoje roda em `localhost`/LAN via [docker-compose.yml](../../docker-compose.yml); o cliente já suporta host remoto, agora com **hosts por serviço** ([frontend/config.js](../../frontend/config.js)). Deploy público **preparado** (scripts nativos [`deploy/aws/`](../../deploy/aws/) + [Guia de Deploy AWS](../v2/Guia%20de%20Deploy%20AWS.md)); **falta o usuário executar na AWS**. → Plano v2 item 3, 12.
 
 - [x] **1.2 — Integração e coordenação de vários componentes distribuídos (implementados no trabalho).** ✅
   Componentes reais e coordenados: Auth Service (C#), Game Gateway-relay (Node), **3 Game Engines independentes** ([game-engine](../../game-engine/), `GAME=jogo1|2|3`), **Score Service (Python)** ([score-service/](../../score-service/)), Frontend e PostgreSQL/Redis/Kafka. A **coordenação foi validada E2E na stack Docker**: o fluxo `engine → Kafka → Score → Redis → API → tela` roda ponta a ponta (3 rankings populados via harness, confirmado pelo usuário). **Falta** apenas o **deploy público na AWS** (req. 1.1/4.4 → itens 3/12).
@@ -33,15 +35,15 @@
 - [x] **1.4 — Processamento de dados no lado servidor, concorrente com os acessos dos clientes.** ✅
   Servidor autoritativo com loop de física a 60 Hz por sala (`setInterval`/event loop do Node), processando enquanto os clientes enviam inputs. Várias partidas rodam concorrentemente.
 
-- [ ] **1.5 — Mecanismos de interação remota síncrona (bloqueante) e assíncrona.** 🟡
-  - *Síncrona:* REST do Auth (login/registro/wins) cobre o mínimo. O **gRPC** previsto (RPC bloqueante para validação de JWT) **ainda não existe** — validação é local ([game-gateway/index.js](../../game-gateway/index.js)). → Plano v2 item 8.
+- [x] **1.5 — Mecanismos de interação remota síncrona (bloqueante) e assíncrona.** ✅
+  - *Síncrona:* REST do Auth + **gRPC bloqueante** de validação de sessão — na conexão, o gateway chama `ValidateToken` no Auth ([authClient.js](../../game-gateway/authClient.js) → [AuthValidationService.cs](../../auth-service/Services/AuthValidationService.cs)), que confere assinatura **e a existência do usuário** (revogação), com fallback local. **Validado:** `dotnet build` + cliente em 5 cenários; E2E ao vivo no [Guia §5.4](../v2/Guia%20de%20Deploy%20AWS.md). → Plano v2 item 8.
   - *Assíncrona:* WebSockets (push de estado em tempo real) + **messaging via Kafka** (`match-completed`: engines publicam, Score consome), **validado E2E na stack Docker** com broker real ([game-engine/kafka.js](../../game-engine/kafka.js), [score-service/consumer.py](../../score-service/consumer.py)). → Plano v2 itens 4, 5.
 
 - [ ] **1.6 — Replicação e particionamento de dados e funcionalidades.** 🟡
-  **Particionamento funcional** (3 engines isolados — item 1 ✅) **e de DADOS**: a tabela `scores` é **particionada por minigame** (PARTITION BY LIST em [score-service/store.py](../../score-service/store.py), validado offline por [selftest_partition.py](../../score-service/selftest_partition.py)) — item 11 🟡. **Falta** a **replicação** do PostgreSQL (instância única, item 10) e o E2E do pruning em PG real. → Plano v2 itens 10, 11.
+  **Particionamento funcional** (3 engines isolados — item 1 ✅) **e de DADOS**: a tabela `scores` é **particionada por minigame** (PARTITION BY LIST em [score-service/store.py](../../score-service/store.py), validado offline por [selftest_partition.py](../../score-service/selftest_partition.py)) — item 11 🟡. **Falta** executar na AWS a **replicação** do PostgreSQL (setup `postgres.sh replica` pronto, item 10) e o E2E do pruning em PG real (comandos no [Guia §5.5/§5.6](../v2/Guia%20de%20Deploy%20AWS.md)). → Plano v2 itens 10, 11.
 
 - [ ] **1.7 — Tratamentos para garantir consistência de dados e disponibilidade.** 🟡
-  Consistência transacional (BCrypt + EF Core/PostgreSQL) + `restart: unless-stopped`. A **consistência eventual** está implementada e **funcionou E2E na stack Docker**: o Score consome o Kafka com commit manual de offset após persistir (`enable_auto_commit=False` + `auto_offset_reset='earliest'`, [score-service/consumer.py](../../score-service/consumer.py)). **Falta** a **réplica** do PostgreSQL para disponibilidade de leitura. → Plano v2 item 10.
+  Consistência transacional (BCrypt + EF Core/PostgreSQL) + `restart: unless-stopped`. A **consistência eventual** está implementada e **funcionou E2E na stack Docker**: o Score consome o Kafka com commit manual de offset após persistir (`enable_auto_commit=False` + `auto_offset_reset='earliest'`, [score-service/consumer.py](../../score-service/consumer.py)). **Falta** subir/validar na AWS a **réplica** do PostgreSQL para disponibilidade de leitura (setup `postgres.sh replica` pronto — [Guia §5.6](../v2/Guia%20de%20Deploy%20AWS.md)). → Plano v2 item 10.
 
 ---
 
@@ -85,17 +87,17 @@
   Serviços + cliente real (navegador) + **clientes simulados** ([load-test/](../../load-test/)): bots autenticam no Auth, conectam no gateway e jogam os 3 minigames **em paralelo** (8 bots → **6 partidas concorrentes, 0 erros**; isolamento de falha demonstrado). Validado localmente contra a stack lite; na AWS aponta para o Load Balancer (item 12).
 
 - [ ] **4.3 — Cenário de demonstração representativo que exercite sistematicamente as características.** 🟡
-  O harness [load-test/](../../load-test/) já roteiriza **concorrência** (N partidas simultâneas) e **tolerância a falha** (derrubar um engine e ver os demais jogos seguirem). **Falta** o roteiro completo cobrindo também **interação síncrona (gRPC)**, **replicação** e o particionamento exercitados na AWS. → Plano v2 itens 8, 10, 12.
+  O harness [load-test/](../../load-test/) já roteiriza **concorrência** (N partidas simultâneas) e **tolerância a falha** (derrubar um engine e ver os demais jogos seguirem). O [Guia de Deploy AWS §5](../v2/Guia%20de%20Deploy%20AWS.md) roteiriza a **bateria completa** — concorrência, **interação síncrona (gRPC + revogação)**, **particionamento** e **replicação** — reusando o `load-test/`; **falta executá-la na AWS**. → Plano v2 itens 10, 12.
 
 - [ ] **4.4 — Executar a demonstração na nuvem AWS (EC2).** ⛔
-  Deploy distribuído ainda não realizado. → Plano v2 itens 3, 12.
+  Deploy distribuído **preparado** (scripts nativos `deploy/aws/` + [Guia de Deploy AWS](../v2/Guia%20de%20Deploy%20AWS.md) com a bateria §5); **falta o usuário executar**. → Plano v2 itens 3, 12.
 
 - [x] **4.5 — Código-fonte (e executáveis).** ✅ Código no repositório; imagens construíveis via Docker por serviço.
 
 - [ ] **4.6 — Documentação (arquitetura e implementação).** 🟡
   Arquitetura documentada ([descrição](../Arquitetura/descrição%20da%20arquitetura.md) + [mermaid](../Arquitetura/Arquitetura_code.md)) e GDD existem; **falta documentação de implementação** (decisões de código, como cada serviço funciona) condizente com a versão final.
 
-- [x] **4.7 — Instruções de uso (README).** ✅ [README.md](../../README.md) com passos de execução. *Atualizar para o deploy distribuído na AWS.* → Plano v2 item 9.7.
+- [x] **4.7 — Instruções de uso (README).** ✅ [README.md](../../README.md) com passos de execução; agora aponta para o **[Guia de Deploy AWS](../v2/Guia%20de%20Deploy%20AWS.md)** e marca o Docker como só desenvolvimento local. → Plano v2 item 9.7.
 
 - [x] **4.8 — Dados de teste.** ✅
   Conjunto **versionado** em [test-data/](../../test-data/): usuários seed (para os clientes simulados), fixture determinístico de eventos `match-completed` e ranking esperado (oráculo), com selftest ([selftest_dataset.py](../../score-service/selftest_dataset.py)).
@@ -108,10 +110,10 @@
 
 | Bloco | Total | Cumpridos | Parciais | Não atendidos |
 |---|---|---|---|---|
-| 1. Características obrigatórias | 7 | 3 | 3 | 1 |
+| 1. Características obrigatórias | 7 | 4 | 2 | 1 |
 | 2. Modelos/paradigmas | 4 | 4 | — | — |
 | 3. Cenário (jogo multiplayer) | 4 | 4 | — | — |
 | 4. Formato/entregáveis | 9 | 5 | 2 | 2 |
-| **Geral** | **24** | **16** | **5** | **3** |
+| **Geral** | **24** | **17** | **4** | **3** |
 
-**Resumo:** o **núcleo de jogo multiplayer (bloco 3) está completo**, as bases de concorrência (1.3, 1.4) sólidas, o **bloco de paradigmas (2.x) está 100%** e os **paradigmas async/pub-sub/messaging (2.3, 2.4) foram validados E2E na stack Docker** (Kafka real → Score em Python → Redis → leaderboard), o que também fechou a **coordenação distribuída (1.2 ✅)**. Já entregues: clientes simulados (4.2 ✅), dados de teste (4.8 ✅), particionamento de dados (1.6/item 11) e o leaderboard ponta a ponta (recorde pessoal + top 5). O que ainda falta concentra-se em **deploy na AWS (1.1/3) + gRPC síncrono (1.5/8) + replicação do PG (10)** e nos **entregáveis de demonstração** (AWS EC2, cenário roteirizado 4.3, vídeo 4.9).
+**Resumo:** o **núcleo de jogo multiplayer (bloco 3) está completo**, as bases de concorrência (1.3, 1.4) sólidas, o **bloco de paradigmas (2.x) está 100%** e os **paradigmas async/pub-sub/messaging (2.3, 2.4) foram validados E2E na stack Docker** (Kafka real → Score em Python → Redis → leaderboard), o que também fechou a **coordenação distribuída (1.2 ✅)**. Já entregues: clientes simulados (4.2 ✅), dados de teste (4.8 ✅), particionamento de dados (1.6/item 11) e o leaderboard ponta a ponta (recorde pessoal + top 5). O **gRPC síncrono (1.5/8)** foi **implementado/validado** e o deploy distribuído está **preparado** (scripts nativos [`deploy/aws/`](../../deploy/aws/) + [Guia de Deploy AWS](../v2/Guia%20de%20Deploy%20AWS.md)). O que ainda falta é **executar o deploy na AWS (1.1/3/4.4)** e, com ele, validar **replicação do PG (10)**, **particionamento E2E (11)** e a **bateria (12)** — além dos **entregáveis de demonstração** (cenário roteirizado 4.3, vídeo 4.9).

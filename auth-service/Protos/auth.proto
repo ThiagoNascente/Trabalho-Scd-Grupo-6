@@ -1,0 +1,33 @@
+// ==========================================================================
+// Contrato gRPC do Auth Service (item 8 — interação SÍNCRONA / RPC bloqueante).
+//
+// O Game Gateway chama ValidateToken na conexão do cliente para validar a
+// sessão DE FORMA SÍNCRONA no Auth (servidor canônico). Diferente da validação
+// puramente local (jwt.verify), aqui o Auth também confirma que o usuário ainda
+// EXISTE no banco — então revogar/remover o usuário invalida novas conexões.
+//
+// IMPORTANTE: este arquivo é o CANÔNICO. Há uma CÓPIA idêntica em
+// game-gateway/auth.proto (carregada em runtime pelo cliente Node, pois o build
+// Docker de cada serviço só enxerga a própria pasta). Mantenha as duas em sincronia.
+// ==========================================================================
+syntax = "proto3";
+
+option csharp_namespace = "AuthService.Grpc";
+
+package auth;
+
+service AuthValidation {
+  // Valida um JWT (assinatura/emissor/audiência/expiração) e a existência da
+  // sessão (usuário no banco). Bloqueante: o gateway aguarda a resposta.
+  rpc ValidateToken (ValidateTokenRequest) returns (ValidateTokenReply);
+}
+
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+message ValidateTokenReply {
+  bool valid = 1;       // true se o token é válido E o usuário existe
+  string username = 2;  // 'sub' do token (preenchido quando valid=true)
+  string reason = 3;    // motivo da recusa (quando valid=false)
+}

@@ -1,6 +1,8 @@
 using System.Text;
 using AuthService.Data;
+using AuthService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
@@ -9,6 +11,8 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+// gRPC síncrono (item 8): endpoint de validação de sessão chamado pelo gateway.
+builder.Services.AddGrpc();
 
 // Database connection (Using Postgres from docker-compose)
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
@@ -50,6 +54,16 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Kestrel: REST (HTTP/1.1) na 5000 e gRPC (HTTP/2) numa porta separada
+// (GRPC_PORT, padrão 5005). gRPC em h2c (texto puro) — TLS está fora de escopo
+// nesta versão; o gateway conecta com credenciais inseguras (rede privada da VPC).
+var grpcPort = int.TryParse(builder.Configuration["GRPC_PORT"], out var gp) ? gp : 5005;
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenAnyIP(5000, lo => lo.Protocols = HttpProtocols.Http1);
+    options.ListenAnyIP(grpcPort, lo => lo.Protocols = HttpProtocols.Http2);
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -59,6 +73,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+// Endpoint gRPC (item 8) — responde na porta HTTP/2 (GRPC_PORT).
+app.MapGrpcService<AuthValidationService>();
 
 // Ensure Database is created (For dev purposes only)
 using (var scope = app.Services.CreateScope())
@@ -75,4 +91,5 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-app.Run("http://0.0.0.0:5000");
+// As portas/protocolos vêm do ConfigureKestrel acima (REST 5000 + gRPC GRPC_PORT).
+app.Run();

@@ -1,6 +1,6 @@
 # Rastreio de Evolução — v2 (Spaceship / SCD 2026.1)
 
-**Última atualização:** 2026-06-19 (3ª rodada — E2E do Score validado na stack Docker) · **Entrega:** 28/06/2026
+**Última atualização:** 2026-06-27 (4ª rodada — **gRPC do item 8 implementado e validado** + **deploy AWS nativo preparado**: scripts `deploy/aws/` + Guia de Deploy AWS) · **Entrega:** 28/06/2026
 **O que é este documento:** o **checklist vivo** (status operacional) do [Plano de correções pendentes para v2](Plano%20de%20correções%20pendentes%20para%20v2.md) e o **ponto único de contexto** do projeto — responde _"onde estamos agora?"_ e _"como o sistema está montado?"_. A arquitetura atual e as notas técnicas (antes no HANDOFF, agora removido) foram absorvidas na seção **Arquitetura atual + notas técnicas** (mais abaixo).
 
 **Documentos irmãos (cada um com um papel):**
@@ -31,12 +31,12 @@ A cada mudança, faça **nesta ordem**:
 
 | Grupo | Itens | ✅ | 🟡 | ⛔ |
 |---|---|---|---|---|
-| A. Eixo distribuído (1–8) | 8 | 5 | 1 | 2 |
-| B. Dívida técnica e consistência (9.1–9.7) | 7 | 6 | 1 | 0 |
-| C. Escala de dados e validação em nuvem (10–12) | 3 | 0 | 2 | 1 |
-| **Total** | **18** | **11** | **4** | **3** |
+| A. Eixo distribuído (1–8) | 8 | 6 | 2 | 0 |
+| B. Dívida técnica e consistência (9.1–9.7) | 7 | 7 | 0 | 0 |
+| C. Escala de dados e validação em nuvem (10–12) | 3 | 0 | 3 | 0 |
+| **Total** | **18** | **13** | **5** | **0** |
 
-> **Leitura rápida:** o **eixo distribuído foi validado E2E na stack Docker real** — Kafka, Score Service, Redis e leaderboard (**itens 4–7 ✅**): o fluxo `engine → Kafka → Score → Redis → API → tela` roda ao vivo, com os 3 rankings populando (validado pelo harness e **confirmado visualmente pelo usuário**). A **dívida técnica está quitada** (9.2 auth canônico). No eixo distribuído faltam o **gRPC síncrono (8)** e a **distribuição na AWS (3)**; o **WebRTC (2)** depende de validação no navegador (usuário). Em **escala de dados**, o **particionamento (11)** está implementado (validado offline); faltam a **replicação do PG (10)** e a **bateria/clientes na AWS (12)** — os **clientes simulados (4.2) e dados de teste (4.8)** já rodam localmente.
+> **Leitura rápida:** **não há mais itens ⛔** — tudo está implementado; o que resta é **executar/validar na AWS** (tarefa do usuário). O **eixo distribuído foi validado E2E na stack Docker** (Kafka, Score, Redis, leaderboard — **itens 4–7 ✅**) e o **gRPC síncrono (item 8) foi implementado e validado** (build do Auth C# + cliente do gateway em 5 cenários, incluindo revogação e fallback; E2E ao vivo roteirizado no Guia §5.4). A **distribuição na AWS (item 3 🟡)** está **toda preparada** — scripts nativos por serviço em [`deploy/aws/`](../../deploy/aws/) (sem Docker) + [Guia de Deploy AWS](Guia%20de%20Deploy%20AWS.md) + roteamento por jogo + matriz de Security Groups; falta só o usuário subir as EC2. Em **escala de dados**, a **replicação do PG (item 10 🟡)** ganhou setup pronto (`postgres.sh replica`), o **particionamento (11 🟡)** está validado offline (verificação E2E roteirizada no Guia §5.5) e a **bateria na AWS (12 🟡)** está roteirizada (Guia §5, reusando `load-test/`). O **WebRTC (item 2 🟡)** depende de validação no navegador (usuário). A **dívida técnica está 100% quitada** (Grupo B — inclui o **9.7**: Guia de Deploy + v1 marcada como histórica).
 
 ---
 
@@ -46,12 +46,12 @@ A cada mudança, faça **nesta ordem**:
 |---|---|---|---|---|---|
 | 1 | **Game Engines isolados** (3 processos `GAME=jogo1\|2\|3`) | 🔴 ● | ✅ | `game-engine/server.js`, `game-engine/games/jogo1\|2\|3.js`, `game-engine/shared/constants.js`; gateway virou relay em `game-gateway/index.js`. Isolamento validado (`JOGO1=FALHOU JOGO2=OK JOGO3=OK`) | EC2 dedicada por engine → **item 3** |
 | 2 | **Migração WebSockets → WebRTC** (canal de jogo) | 🔴 ● | 🟡 | `game-engine/server.js` (geckos.io, sinalização 5001/2/3), `frontend/index.html` (helper `RT`), `frontend/vendor/geckos.client.iife.js`, flag `USE_WEBRTC` em `frontend/config.js`. Fallback Socket.io automático | **Validar handshake no navegador + medir latência** (WebRTC × WS) — depende do **usuário**. TURN/NAT entra no item 3 |
-| 3 | **Distribuição AWS: 1 serviço por EC2 + Load Balancer** | 🔴 ● | ⛔ | — | Deploy distribuído, matchmaking que devolve o engine, Security Groups, TURN, guia de deploy |
+| 3 | **Distribuição AWS: 1 serviço por EC2** (balanceamento via matchmaking, sem ALB) | 🔴 ● | 🟡 | **Preparado, sem Docker:** scripts nativos por serviço `deploy/aws/*.sh` (systemd), `deploy/aws/env.aws.example`, [Guia de Deploy AWS](Guia%20de%20Deploy%20AWS.md) (topologia + Security Groups + ordem). Roteamento por jogo no cliente (`frontend/config.js` `ENGINE_HOSTS`) | **Executar nas EC2** (usuário) — Guia §4. Escala horizontal (round-robin de >1 engine por jogo) fica como evolução |
 | 4 | **Apache Kafka** (produtor/consumidor) | 🔴 ◑ | ✅ | Produtor **resiliente** `game-engine/kafka.js` (`ensureProducer` reconecta se o Kafka subir depois — corrige o bug do 1º E2E), nos 3 ganchos. Consumidor `score-service/consumer.py`. **E2E na stack Docker:** partidas publicam e o Score consome (ranking populou ao vivo) | Cenário de **retenção** (Score parado) p/ a demo — passos em `run.md`; é garantido pelo commit-após-persistir |
 | 5 | **Score Service (Python/Flask)** | 🔴 ● | ✅ | `score-service/` consome `match-completed`, materializa **Redis + PostgreSQL** e expõe `GET /api/scores` (+ `GET /api/scores/player`, CORS liberado). **E2E na Docker** validado: 3 rankings populados via harness, lidos pela API | — |
 | 6 | **Redis** (cache do leaderboard) | 🟠 ◑ | ✅ | `score-service/store.py` — sorted sets `leaderboard:jogoN`; leitura via `ZREVRANGE` (ranking) e `ZSCORE` (recorde do jogador) direto do Redis. **E2E:** a API lê do Redis na stack Docker (sem varrer o PG) | — |
 | 7 | **Leaderboard global por minigame** | 🔴 ◑ | ✅ | Backend `GET /api/scores`; frontend tela "Ranking Global" (**top 5**) + **recorde pessoal no Command Center** (`/api/scores/player`); layout do bloco corrigido. **Confirmado visualmente pelo usuário** com dados reais | — |
-| 8 | **gRPC síncrono** (validação de JWT no Auth) | 🟠 ◑ | ⛔ | — (verificado: nenhum uso de `grpc` no código) | Endpoint gRPC no Auth (C#) + chamada do gateway na conexão. ⚠️ mexe no `auth-service` C# (não roda no ambiente de dev) |
+| 8 | **gRPC síncrono** (validação de sessão no Auth) | 🟠 ◑ | ✅ | Contrato `auth-service/Protos/auth.proto` (cópia em `game-gateway/auth.proto`); servidor `auth-service/Services/AuthValidationService.cs` (HTTP/2 em `Program.cs`, porta `GRPC_PORT`/5005) valida assinatura **+ existência do usuário** (revogação); cliente `game-gateway/authClient.js` chamado em `game-gateway/index.js` com **fallback local** (não quebra a v1). **Validado:** `dotnet build` OK + cliente em 5 cenários (válido, revogação, assinatura inválida, fallback, modo local) | E2E ao vivo C#↔Node↔PG (precisa de Postgres) — roda na **stack Docker** ([run.md](../../run.md)) ou na AWS ([Guia §5.4](Guia%20de%20Deploy%20AWS.md)) |
 
 ---
 
@@ -65,7 +65,7 @@ A cada mudança, faça **nesta ordem**:
 | 9.4 | **Remover manifestos k8s** | 🟡 ◐ | ✅ | Pasta `k8s/` inexistente no repositório (verificado) | — |
 | 9.5 | Código morto: inimigo **`formacao`** | 🟡 ◐ | ✅ | Removido no engine (`game-engine/games/jogo3.js`, mapeamento GDD na linha 6) e em `frontend/index.html`; `formacao` não existe mais no repo | — _(no `game-engine/` desde o item 1)_ |
 | 9.6 | **Segredos por variável de ambiente** (falha explícita) | 🟠 ◐ | ✅ | Sem `JWT_SECRET` default em `auth-service/Program.cs`, `AuthController.cs`, `game-gateway/index.js`, `auth-service-lite/server.js`; `docker-compose.yml` usa `${VAR:?}` | — |
-| 9.7 | **Guia de deploy + links da doc** | 🟡 ◐ | 🟡 | Link Plano v2 → Checklist corrigido (pasta `Requisitos do trabalho/`) | Links defasados em `Docs/v1/QA_Status_v1.md` + **guia de deploy AWS** (acoplado ao item 3) |
+| 9.7 | **Guia de deploy + links da doc** | 🟡 ◐ | ✅ | [Guia de Deploy AWS](Guia%20de%20Deploy%20AWS.md) (passo a passo + Security Groups + testes) + `deploy/aws/README.md`; **v1 marcada como histórica** (`Docs/v1/*` com aviso de superada — resolve o link morto `DEPLOYMENT_GUIDE.md`); `README.md` aponta para o guia e marca Docker como só-local | — |
 
 ---
 
@@ -73,32 +73,32 @@ A cada mudança, faça **nesta ordem**:
 
 | # | Item | Prio/Esf | Status | Evidência (`arquivo`) | O que falta |
 |---|---|---|---|---|---|
-| 10 | **Replicação do PostgreSQL** (Primary-Replica) | 🟠 ◑ | ⛔ | — (instância única) | Topologia primary-replica (escritas no primário, leituras de ranking na réplica) |
-| 11 | **Particionamento de dados** | 🟡 ◑ | 🟡 | Tabela `scores` **particionada por LISTA** do minigame em `score-service/store.py` (`init_schema`: `scores_jogo1\|2\|3` + DEFAULT `scores_outros`; PK inclui `game`); `partition_for` + `selftest_partition.py` (roteamento + distribuição do fixture OK) | **E2E com PG real**: pruning via `EXPLAIN` (fase Docker/AWS — itens 3/12) |
-| 12 | **Bateria de testes na AWS EC2** | 🟠 ◑ | 🟡 | **Clientes simulados (req. 4.2)** em `load-test/` — validados localmente **e contra a stack Docker completa** (3 rankings populados, 0 erros, isolamento de falha); **dados de teste (req. 4.8)** em `test-data/` (+ `selftest_dataset.py`) | **Bateria na AWS** (depende do item 3): repetir na nuvem, latência WebRTC, replicação; cenário de demo (4.3) e vídeo (4.9) |
+| 10 | **Replicação do PostgreSQL** (Primary-Replica) | 🟠 ◑ | 🟡 | Setup pronto: `deploy/aws/postgres.sh primary` (configura `wal_level`/`max_wal_senders` + papel de replicação) e `postgres.sh replica` (recria via `pg_basebackup -R`, standby somente-leitura) | **Executar/validar na AWS** (usuário) — Guia §5.6 (`pg_is_in_recovery()`, escrita no primário → leitura na réplica) |
+| 11 | **Particionamento de dados** | 🟡 ◑ | 🟡 | Tabela `scores` **particionada por LISTA** do minigame em `score-service/store.py` (`init_schema`: `scores_jogo1\|2\|3` + DEFAULT `scores_outros`; PK inclui `game`); `partition_for` + `selftest_partition.py` (roteamento + distribuição do fixture OK) | **E2E com PG real**: pruning via `EXPLAIN` — comandos prontos no [Guia §5.5](Guia%20de%20Deploy%20AWS.md) (rodar na AWS/Docker) |
+| 12 | **Bateria de testes na AWS EC2** | 🟠 ◑ | 🟡 | **Clientes simulados (req. 4.2)** em `load-test/` — validados localmente **e contra a stack Docker completa** (3 rankings populados, 0 erros, isolamento de falha); **dados de teste (req. 4.8)** em `test-data/` (+ `selftest_dataset.py`) | **Bateria na AWS** roteirizada no [Guia §5](Guia%20de%20Deploy%20AWS.md) (smoke, bots `load-test/`, gRPC, partição, replicação, isolamento) — falta o usuário **executar**; + latência WebRTC, cenário de demo (4.3) e vídeo (4.9) |
 
 ---
 
 ## 🔜 Próximos passos (ordem recomendada)
 
-1. **(do usuário)** Validar **WebRTC no navegador** + medir latência → fecha o **item 2** (única peça do eixo distribuído ainda dependente do navegador).
-2. **Item 8 — gRPC** (validação de JWT no Auth C# chamado pelo gateway). O ambiente **tem .NET 8** (o C# compila), então dá para implementar e validar aqui — é a única interação **síncrona** que falta (req. 1.5).
-   - **Alternativa de baixo risco:** **9.7** (links em `Docs/v1` + guia de deploy AWS — parte já coberta por `run.md`).
-3. **Item 3 — AWS** (1 EC2 por serviço + Load Balancer + matchmaking + TURN) → habilita o item **10** e a bateria do **12** na nuvem.
-4. **Item 10 — replicação do PG** (primary-replica) → fecha o que falta de 1.6/1.7.
-5. **Item 12 — bateria na AWS** + cenário de demo roteirizado (4.3) + vídeo (4.9).
+1. **(do usuário) Executar o deploy na AWS** pelo [Guia de Deploy AWS](Guia%20de%20Deploy%20AWS.md): subir as EC2 (1 serviço por máquina), rodar `deploy/aws/*.sh` e a **bateria de testes** (Guia §5). Isso **fecha o item 3** e valida ao vivo o **gRPC (8)**, a **replicação (10)**, o **particionamento (11)** e a **bateria (12)** — habilitando os requisitos **1.1 / 4.4**.
+2. **(do usuário) Validar WebRTC no navegador** + medir latência → fecha o **item 2** (o `frontend.sh` já publica o bundle geckos e a faixa UDP é aberta no Security Group).
+3. **(do usuário) Gravar o vídeo** de demonstração (req. 4.9) com a stack rodando na AWS.
 
 ---
 
 ## ⏳ Pendências que dependem do USUÁRIO
 
+- **Executar o deploy na AWS** (Guia §4) e rodar a **bateria de testes** (Guia §5): smoke, bots do `load-test/`, gRPC/revogação, particionamento, replicação e isolamento de falha. Fecha o **item 3** e valida ao vivo **8/10/11/12** + reqs **1.1/4.4**.
 - **WebRTC no navegador:** confirmar o handshake (DevTools deve logar `"[WebRTC] canal de jogo aberto: jogoX"`; `chrome://webrtc-internals` mostra o DataChannel) e **medir a latência** WebRTC × WebSockets (fecha o aceite do item 2).
 - ~~**Leaderboard:** confirmação visual com dados reais~~ — ✅ **feito** (usuário testou e validou o ranking + recordes na stack Docker).
 
 ## 🧭 Decisões de escopo firmadas (NÃO reabrir)
 
 - **FORA:** criptografia do tráfego (TLS/HTTPS/WSS).
-- **FORA:** Kubernetes/orquestrador. Distribuição = **1 serviço por EC2 + Load Balancer**.
+- **FORA:** Kubernetes/orquestrador. Distribuição = **1 serviço por EC2** (decisão v2).
+- **Balanceamento:** via **matchmaking do gateway** (escolhe o engine e devolve o endereço), **sem ALB**.
+- **Deploy AWS é NATIVO (sem Docker).** Docker/`docker-compose` = só desenvolvimento local.
 - **WebRTC** é o canal de jogo (migração efetiva — item 2), com fallback Socket.io.
 
 ---
@@ -113,14 +113,14 @@ A cada mudança, faça **nesta ordem**:
 Navegador (frontend :8080)
   │  Socket.io: login/lobby/controle/sinalização (+ FALLBACK do hot path)
   ▼
-Game Gateway "relay" (game-gateway/ :3000) — autentica JWT, roteia; NÃO roda física.
+Game Gateway "relay" (game-gateway/ :3000) — valida a sessão via gRPC no Auth (fallback local), roteia; NÃO roda física.
   │  abre 1 conexão por jogador a cada engine (repassa playerId = socket.id do cliente)
   ▼
 Game Engines (game-engine/, mesma imagem, GAME=jogo1|jogo2|jogo3)
    :4001/4002/4003 Socket.io — física a 60Hz, isolada por processo
    :5001/5002/5003 WebRTC    — DataChannel UDP direto com o navegador (hot path)
    └─ ao fim da partida publica `match-completed` no Kafka
-Auth C# (auth-service/ :5000) — JWT + BCrypt + PostgreSQL (CANÔNICO, no compose)
+Auth C# (auth-service/ :5000 REST + :5005 gRPC) — JWT + BCrypt + PostgreSQL (CANÔNICO). gRPC ValidateToken valida sessão p/ o gateway (item 8)
 auth-service-lite (Node/JSON :5000) — espelho de DEV sem Docker (fora do compose)
 Kafka → Score Service (Python :8000) → Redis (ranking) + PostgreSQL (histórico particionado)
    └─ frontend lê GET /api/scores (ranking top 5) e /api/scores/player (recorde)
@@ -133,6 +133,8 @@ Kafka → Score Service (Python :8000) → Redis (ranking) + PostgreSQL (histór
 - **CORS:** o Score (`app.py`) libera `Access-Control-Allow-Origin: *` para o frontend (outra origem) ler o ranking.
 - **Score / at-least-once:** jogo2/3 usam `ZADD GT` (idempotente); jogo1 usa `ZINCRBY` (numa falha rara no meio do processamento pode contar a mais — aceitável no escopo).
 - **WebRTC (geckos):** bundle de browser vendorizado em `frontend/vendor/` (gerado por esbuild); cai para Socket.io se o canal não abrir (`USE_WEBRTC` em `frontend/config.js`).
+- **gRPC (item 8):** o gateway valida a sessão chamando `ValidateToken` no Auth (`AUTH_GRPC_URL`, porta `GRPC_PORT`/5005, HTTP/2 em texto puro). Resposta "inválido" (ex.: usuário removido) é honrada; só **erro de transporte** cai para `jwt.verify` local — assim a v1 não quebra sem o gRPC. Sem `AUTH_GRPC_URL` = validação local pura (DEV).
+- **Deploy:** Docker/`docker-compose` é **só local**; na AWS cada serviço sobe **nativo** via `deploy/aws/*.sh` (systemd, 1 serviço por EC2) — ver [Guia de Deploy AWS](Guia%20de%20Deploy%20AWS.md). Endereços por serviço no cliente: `frontend/config.js` (`AUTH_HOST`/`GATEWAY_HOST`/`SCORE_HOST`/`ENGINE_HOSTS`, cada um cai para `HOST`).
 - **`auth-service-lite/users.json`** é um "banco" de dev mutável; pode resetar para `[]`.
 
 ---
@@ -143,6 +145,7 @@ Kafka → Score Service (Python :8000) → Redis (ranking) + PostgreSQL (histór
 
 | Data | Mudança | Itens afetados | Reflexo nos requisitos |
 |---|---|---|---|
+| 2026-06-27 | **4ª rodada — gRPC (item 8) implementado/validado + deploy AWS nativo preparado.** Servidor gRPC `ValidateToken` no Auth C# (assinatura + existência do usuário = revogação) + cliente no gateway com **fallback local** (`game-gateway/authClient.js`); `dotnet build` OK e cliente validado em **5 cenários**. **Deploy sem Docker:** scripts `deploy/aws/*.sh` (systemd, 1 serviço/EC2) + `env.aws.example` + **[Guia de Deploy AWS](Guia%20de%20Deploy%20AWS.md)** (Security Groups, ordem, bateria de testes); `frontend/config.js` ganhou **hosts por serviço**. **v1 marcada como histórica**; README aponta para o guia. | 8 → ✅; 3, 10 → 🟡; 9.7 → ✅ | **1.5 🟡→✅** (síncrono gRPC + assíncrono). Placar requisitos: **17 ✅ / 4 🟡 / 3 ⛔** |
 | 2026-06-19 | **3ª rodada — E2E do Score validado na stack Docker + UI do leaderboard + consolidação da doc.** Bugs corrigidos: **CORS** no Score (`app.py`) e **produtor Kafka resiliente** (`game-engine/kafka.js`). Fluxo `engine→Kafka→Score→Redis→API→tela` rodando ao vivo (3 rankings populados via harness, confirmado pelo usuário). UI: **recorde pessoal no Command Center** (`GET /api/scores/player`), ranking **top 5**, layout do bloco corrigido. Doc: `run.md` + `dev-stack.sh`; **HANDOFF removido** (conteúdo absorvido neste Rastreio) | 4, 5, 6, 7 → ✅ | **2.3/2.4 🟡→✅** (pub/sub + messaging E2E em broker real); **1.2 🟡→✅** (coordenação E2E). Placar requisitos: **16 ✅ / 5 🟡 / 3 ⛔** |
 | 2026-06-19 | Sessão **clientes simulados + auth canônico + particionamento + dados de teste** (ambiente agora com Node+Python+.NET+Java): harness de carga (`load-test/` — 8 bots, 6 partidas concorrentes, 0 erros, isolamento de falha demonstrado); auth-lite alinhado ao C# canônico (bcrypt, `/login → {token}`, TTL 2h); tabela `scores` particionada por minigame; fixture versionado (`test-data/` + `selftest_dataset.py`/`selftest_partition.py`) | 9.2 → ✅; 11 → 🟡; 12 → 🟡 | **4.2 🟡→✅**, **4.8 ⛔→✅**, **4.3 ⛔→🟡**; 1.6 reforçado (particionamento de dados). Placar requisitos: **13 ✅ / 8 🟡 / 3 ⛔** |
 | 2026-06-19 | **Correção de drift de referências** no Plano v2: ponteiros da física `game-gateway/` → `game-engine/` (itens 9.3, 9.5, 8, 9.6 e §3.3/§4) atualizados para o estado pós-item 1 | — (sem mudança de status) | — |

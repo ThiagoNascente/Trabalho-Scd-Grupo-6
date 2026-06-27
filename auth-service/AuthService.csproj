@@ -14,6 +14,13 @@
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <!-- gRPC síncrono (item 8): validação de JWT/sessão chamada pelo gateway. -->
+    <PackageReference Include="Grpc.AspNetCore" Version="2.66.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Gera a classe-base do servidor gRPC a partir do contrato. -->
+    <Protobuf Include="Protos\auth.proto" GrpcServices="Server" />
   </ItemGroup>
 
 </Project>

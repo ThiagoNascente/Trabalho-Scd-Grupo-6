@@ -62,9 +62,11 @@ services:
     container_name: spaceship_auth
     ports:
       - "${AUTH_PORT:-5000}:5000"
+      - "${AUTH_GRPC_PORT:-5005}:5005"          # gRPC (item 8) — validação de sessão
     environment:
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=${POSTGRES_DB:-authdb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env (copie de .env.example)}
       - JwtSettings__Secret=${JWT_SECRET:?defina JWT_SECRET no .env (copie de .env.example)}
+      - GRPC_PORT=5005
     depends_on:
       - postgres
     restart: unless-stopped
@@ -78,6 +80,7 @@ services:
       - "${GATEWAY_PORT:-3000}:3000"
     environment:
       - JWT_SECRET=${JWT_SECRET:?defina JWT_SECRET no .env (copie de .env.example)}
+      - AUTH_GRPC_URL=auth-service:5005        # valida sessão via gRPC no Auth (item 8)
       - ENGINE1_URL=http://game-engine-1:4001
       - ENGINE2_URL=http://game-engine-2:4002
       - ENGINE3_URL=http://game-engine-3:4003

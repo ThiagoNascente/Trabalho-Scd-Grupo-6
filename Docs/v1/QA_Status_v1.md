@@ -1,5 +1,7 @@
 # Status de Atendimento ao Relatório de QA (v1)
 
+> ⚠️ **DOCUMENTO HISTÓRICO (v1) — SUPERADO PELA v2.** Reflete o estado e as decisões do ciclo v1 e está **defasado**. O que vale agora está na v2: [Rastreio de Evolução](../v2/Rastreio%20de%20Evolução.md), [Plano de correções pendentes para v2](../v2/Plano%20de%20correções%20pendentes%20para%20v2.md) e [Guia de Deploy AWS](../v2/Guia%20de%20Deploy%20AWS.md). Arquivos citados abaixo que **não existem mais** (ex.: `DEPLOYMENT_GUIDE.md`, manifestos `k8s/`) ou decisões revertidas (Kubernetes/containers na nuvem, criptografia de tráfego) ficam só como **registro** — não os tome como estado atual.
+
 **Referência:** [relatorio_QA_v1.md](../relatorio_QA_v1.md)
 **Data:** 2026-06-17
 **Responsável pelos ajustes:** Vinícius (Programação)

@@ -1,0 +1,25 @@
+// ==========================================================================
+// CÓPIA do contrato gRPC do Auth (item 8). O cliente Node (authClient.js) carrega
+// este .proto em runtime via @grpc/proto-loader. O CANÔNICO é
+// auth-service/Protos/auth.proto — mantenha as duas cópias idênticas.
+//
+// Por que copiar? Cada serviço tem seu próprio build/imagem (o Dockerfile do
+// gateway só enxerga game-gateway/), então o contrato precisa viver aqui também.
+// ==========================================================================
+syntax = "proto3";
+
+package auth;
+
+service AuthValidation {
+  rpc ValidateToken (ValidateTokenRequest) returns (ValidateTokenReply);
+}
+
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+message ValidateTokenReply {
+  bool valid = 1;
+  string username = 2;
+  string reason = 3;
+}

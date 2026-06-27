@@ -1,4 +1,7 @@
 # Relatório de QA & Planejamento de Ciclo de Testes
+
+> ⚠️ **DOCUMENTO HISTÓRICO (v1) — SUPERADO PELA v2.** Relatório do ciclo v1 (base para o [Plano v2](../v2/Plano%20de%20correções%20pendentes%20para%20v2.md)), mantido como **registro**. O estado atual do projeto está no [Rastreio de Evolução](../v2/Rastreio%20de%20Evolução.md) e o deploy no [Guia de Deploy AWS](../v2/Guia%20de%20Deploy%20AWS.md).
+
 **QA:** Ana liz
 
 **Projeto:** Jogo Online de Naves (Jogos 1, 2 e 3), Spaceship 

@@ -9,6 +9,12 @@ Para rodar este projeto em qualquer máquina, você precisará apenas do:
 1. **Docker e Docker Compose** (ou Docker Desktop)
    - Todos os serviços (Backend, Gateway e Frontend) e o banco de dados rodam inteiramente via contêineres, dispensando a necessidade de instalar ferramentas como Python, Node.js ou o SDK do .NET localmente.
 
+> 🐳 **O Docker é só para DESENVOLVIMENTO/teste local.** O deploy distribuído na
+> nuvem é **nativo (sem Docker)**, com **1 serviço por EC2** — ver o
+> **[Guia de Deploy AWS](Docs/v2/Guia%20de%20Deploy%20AWS.md)** e os scripts em
+> [`deploy/aws/`](deploy/aws/). O estado atual do projeto está no
+> **[Rastreio de Evolução](Docs/v2/Rastreio%20de%20Evolução.md)**.
+
 ---
 
 ## 🚀 Como Executar

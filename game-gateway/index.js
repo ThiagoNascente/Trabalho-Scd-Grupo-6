@@ -6,12 +6,16 @@
 //
 // Esta etapa ainda usa Socket.io entre cliente e gateway (pré-WebRTC, item 2).
 // Endereços dos engines vêm de variável de ambiente (ENGINE1/2/3_URL).
+//
+// Validação de sessão (item 8): na conexão, o gateway valida o JWT via gRPC
+// SÍNCRONO no Auth (AUTH_GRPC_URL) — ver authClient.js. Sem AUTH_GRPC_URL ou com
+// o Auth fora do ar, cai para validação local (jwt.verify), sem quebrar a v1.
 // ==========================================================================
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const { io: ioClient } = require('socket.io-client');
-const jwt = require('jsonwebtoken');
+const { validateToken } = require('./authClient');
 
 const app = express();
 const server = http.createServer(app);
@@ -41,15 +45,15 @@ const EVENT_TO_GAME = {
   j3_createRoom: 'jogo3', j3_joinRoom: 'jogo3', j3_startGame: 'jogo3', j3_move: 'jogo3', j3_shoot: 'jogo3', j3_leaveRoom: 'jogo3',
 };
 
-io.use((socket, next) => {
+io.use(async (socket, next) => {
   const token = socket.handshake.auth.token;
   if (!token) return next(new Error("Authentication error: No token provided"));
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) return next(new Error("Authentication error: Invalid token"));
-    socket.user = decoded;
-    socket.token = token; // repassado aos engines na sinalização
-    next();
-  });
+  // RPC síncrono ao Auth (com fallback local) — ver authClient.js.
+  const result = await validateToken(token);
+  if (!result.valid) return next(new Error("Authentication error: " + (result.reason || "Invalid token")));
+  socket.user = { sub: result.username };
+  socket.token = token; // repassado aos engines na sinalização
+  next();
 });
 
 io.on('connection', (clientSocket) => {

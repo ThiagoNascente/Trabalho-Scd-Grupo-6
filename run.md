@@ -128,6 +128,23 @@ sudo docker exec -it spaceship_postgres psql -U postgres -d authdb -c "EXPLAIN (
 sudo docker exec -it spaceship_postgres psql -U postgres -d authdb -c "SELECT tableoid::regclass AS particao, count(*) FROM scores GROUP BY 1;"
 ```
 
+**Verificar o gRPC síncrono (item 8).** A stack Docker tem Postgres, então o
+item 8 roda **E2E aqui** (não só na AWS). Na conexão, o gateway valida a sessão
+chamando o Auth por gRPC; confirme no log:
+
+```
+sudo docker compose logs game-gateway | grep -i grpc
+```
+
+Esperado: `validação de sessão via gRPC em auth-service:5005`. Teste a
+**revogação** (o que a validação local não pegaria): registre/jogue com um
+usuário, remova-o no banco e tente reconectar — o gateway recusa, porque o Auth
+(via gRPC) responde que o usuário não existe mais:
+
+```
+sudo docker exec -it spaceship_postgres psql -U postgres -d authdb -c "DELETE FROM \"Users\" WHERE \"Username\"='SEU_USER';"
+```
+
 **Algum build falhou:**
 
 ```

@@ -663,12 +663,17 @@
         // Configuração centralizada de endpoints (frontend/config.js). Fallback para o host atual.
         const CFG = window.APP_CONFIG || {};
         const HOST = (CFG.HOST && CFG.HOST.length) ? CFG.HOST : window.location.hostname;
+        // Host por serviço (deploy distribuído / 1 EC2 por serviço). Vazio => HOST.
+        const hostFor = (h) => (h && h.length) ? h : HOST;
+        const AUTH_HOST = hostFor(CFG.AUTH_HOST);
+        const GATEWAY_HOST = hostFor(CFG.GATEWAY_HOST);
+        const SCORE_HOST = hostFor(CFG.SCORE_HOST);
         const PROTOCOL = window.location.protocol;
         const AUTH_PORT = CFG.AUTH_PORT || 5000;
         const GATEWAY_PORT = CFG.GATEWAY_PORT || 3000;
         const SCORE_PORT = CFG.SCORE_PORT || 8000;
-        const API_URL = `${PROTOCOL}//${HOST}:${AUTH_PORT}/api/auth`;
-        const SCORE_API_URL = `${PROTOCOL}//${HOST}:${SCORE_PORT}/api/scores`;
+        const API_URL = `${PROTOCOL}//${AUTH_HOST}:${AUTH_PORT}/api/auth`;
+        const SCORE_API_URL = `${PROTOCOL}//${SCORE_HOST}:${SCORE_PORT}/api/scores`;
         let socket;
 
         // ==========================================================================
@@ -686,7 +691,9 @@
                 if (!CFG.USE_WEBRTC || typeof geckos !== 'function' || !ports[game]) return; // permanece no Socket.io
                 try {
                     const token = localStorage.getItem('spaceship_token');
-                    const ch = geckos({ url: `${PROTOCOL}//${HOST}`, port: ports[game], authorization: token });
+                    // Engine pode estar em outra EC2 (1 engine por máquina, item 3).
+                    const engineHost = hostFor((CFG.ENGINE_HOSTS || {})[game]);
+                    const ch = geckos({ url: `${PROTOCOL}//${engineHost}`, port: ports[game], authorization: token });
                     ch.onConnect((error) => {
                         if (error) { console.warn('[WebRTC] canal indisponível, usando Socket.io:', error.message || error); return; }
                         this.channel = ch; this.ready = true;
@@ -877,7 +884,7 @@
         function connectSocket() {
             const token = localStorage.getItem('spaceship_token');
             const statusText = document.getElementById('socket-status');
-            socket = io(`${PROTOCOL}//${HOST}:${GATEWAY_PORT}`, { auth: { token: token } });
+            socket = io(`${PROTOCOL}//${GATEWAY_HOST}:${GATEWAY_PORT}`, { auth: { token: token } });
 
             socket.on('connect', () => {
                 statusText.innerText = '✔️ Conectado ao Gateway Seguro.'; statusText.style.color = '#2ecc71';
