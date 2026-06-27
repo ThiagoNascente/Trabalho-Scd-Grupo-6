@@ -5,7 +5,7 @@
 #   sudo bash gateway.sh
 # ==========================================================================
 set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "$SCRIPT_DIR/common.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "$SCRIPT_DIR/../common.sh"
 need_root "$@"
 require_env JWT_SECRET AUTH_HOST_PRIVATE ENGINE1_HOST_PRIVATE ENGINE2_HOST_PRIVATE ENGINE3_HOST_PRIVATE
 

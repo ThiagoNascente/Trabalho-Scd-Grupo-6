@@ -19,6 +19,8 @@
 
 > **Atualização 2026-06-27 (v2, 4ª rodada):** **gRPC síncrono (item 8) implementado e validado** — `ValidateToken` no Auth C# (assinatura + existência do usuário/revogação) + cliente no gateway com fallback local ([authClient.js](../../game-gateway/authClient.js)); `dotnet build` OK + cliente em 5 cenários. **Deploy distribuído preparado SEM Docker:** scripts nativos por serviço em [`deploy/aws/`](../../deploy/aws/) (systemd, 1 serviço por EC2) + [Guia de Deploy AWS](../v2/Guia%20de%20Deploy%20AWS.md) (Security Groups, ordem de subida e bateria de testes) + hosts por serviço no [config.js](../../frontend/config.js); **v1 marcada como histórica**. Reflexo: **1.5 🟡→✅** (síncrono gRPC + assíncrono). Itens 3/10 → 🟡 (prontos para subir; falta o usuário executar na AWS). Placar geral: **17 ✅ / 4 🟡 / 3 ⛔**.
 
+> **Atualização 2026-06-27 (v2, 5ª rodada):** **deploy AWS condensado de 10 para 6 máquinas** (a conta AWS só permite 9 instâncias). Os scripts viraram orquestradores [`deploy/aws/deploy1.sh`…`deploy6.sh`](../../deploy/aws/) (um por EC2; peças por serviço em `deploy/aws/lib/`) e o [Guia de Deploy AWS](../v2/Guia%20de%20Deploy%20AWS.md) foi reescrito (topologia + **descrição dos 6 deploys** + Security Groups p/ 6 instâncias). **Preservados** o PostgreSQL primário×réplica (item 10) e os 3 engines isolados (particionamento funcional). **Sem mudança de status/placar** — itens 3/10/11/12 seguem 🟡 (falta o usuário executar na AWS). Placar geral: **17 ✅ / 4 🟡 / 3 ⛔**.
+
 ---
 
 ## 1. Características obrigatórias do sistema (válidas para qualquer cenário)
@@ -40,10 +42,10 @@
   - *Assíncrona:* WebSockets (push de estado em tempo real) + **messaging via Kafka** (`match-completed`: engines publicam, Score consome), **validado E2E na stack Docker** com broker real ([game-engine/kafka.js](../../game-engine/kafka.js), [score-service/consumer.py](../../score-service/consumer.py)). → Plano v2 itens 4, 5.
 
 - [ ] **1.6 — Replicação e particionamento de dados e funcionalidades.** 🟡
-  **Particionamento funcional** (3 engines isolados — item 1 ✅) **e de DADOS**: a tabela `scores` é **particionada por minigame** (PARTITION BY LIST em [score-service/store.py](../../score-service/store.py), validado offline por [selftest_partition.py](../../score-service/selftest_partition.py)) — item 11 🟡. **Falta** executar na AWS a **replicação** do PostgreSQL (setup `postgres.sh replica` pronto, item 10) e o E2E do pruning em PG real (comandos no [Guia §5.5/§5.6](../v2/Guia%20de%20Deploy%20AWS.md)). → Plano v2 itens 10, 11.
+  **Particionamento funcional** (3 engines isolados — item 1 ✅) **e de DADOS**: a tabela `scores` é **particionada por minigame** (PARTITION BY LIST em [score-service/store.py](../../score-service/store.py), validado offline por [selftest_partition.py](../../score-service/selftest_partition.py)) — item 11 🟡. **Falta** executar na AWS a **replicação** do PostgreSQL (setup pronto: réplica no `deploy2.sh`, item 10) e o E2E do pruning em PG real (comandos no [Guia §5.5/§5.6](../v2/Guia%20de%20Deploy%20AWS.md)). → Plano v2 itens 10, 11.
 
 - [ ] **1.7 — Tratamentos para garantir consistência de dados e disponibilidade.** 🟡
-  Consistência transacional (BCrypt + EF Core/PostgreSQL) + `restart: unless-stopped`. A **consistência eventual** está implementada e **funcionou E2E na stack Docker**: o Score consome o Kafka com commit manual de offset após persistir (`enable_auto_commit=False` + `auto_offset_reset='earliest'`, [score-service/consumer.py](../../score-service/consumer.py)). **Falta** subir/validar na AWS a **réplica** do PostgreSQL para disponibilidade de leitura (setup `postgres.sh replica` pronto — [Guia §5.6](../v2/Guia%20de%20Deploy%20AWS.md)). → Plano v2 item 10.
+  Consistência transacional (BCrypt + EF Core/PostgreSQL) + `restart: unless-stopped`. A **consistência eventual** está implementada e **funcionou E2E na stack Docker**: o Score consome o Kafka com commit manual de offset após persistir (`enable_auto_commit=False` + `auto_offset_reset='earliest'`, [score-service/consumer.py](../../score-service/consumer.py)). **Falta** subir/validar na AWS a **réplica** do PostgreSQL para disponibilidade de leitura (setup pronto no `deploy2.sh` — [Guia §5.6](../v2/Guia%20de%20Deploy%20AWS.md)). → Plano v2 item 10.
 
 ---
 

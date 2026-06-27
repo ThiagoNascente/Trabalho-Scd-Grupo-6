@@ -34,7 +34,7 @@ O ciclo v1 fechou **todos os bugs de UI/UX e de consistência de gameplay** apon
 |---|---|---|---|---|
 | 1 | ✅ Game Engines isolados — agora 3 processos independentes (`game-engine`, GAME=jogo1\|2\|3); falta só a EC2 dedicada (item 3) | QA §3 / Arquitetura | 🔴 | ● |
 | 2 | 🟡 Migração WebSockets → **WebRTC** (canal de jogo) — implementado com fallback; falta validar handshake no navegador + medir latência | QA §3 / decisão v2 | 🔴 | ● |
-| 3 | 🟡 **Distribuição na AWS: 1 serviço por EC2** (balanceamento por matchmaking, **sem ALB**) — scripts nativos `deploy/aws/*.sh` + [Guia de Deploy AWS](Guia%20de%20Deploy%20AWS.md) prontos; falta o usuário executar | Possiveis_problemas / decisão v2 | 🔴 | ● |
+| 3 | 🟡 **Distribuição na AWS** (balanceamento por matchmaking, **sem ALB**) — **condensado em 6 EC2** (`deploy/aws/deploy1.sh`…`deploy6.sh`; limite de 9 instâncias da conta) + [Guia de Deploy AWS](Guia%20de%20Deploy%20AWS.md) prontos; falta o usuário executar | Possiveis_problemas / decisão v2 | 🔴 | ● |
 | 4 | ✅ Apache Kafka — produtor **resiliente** nos 3 engines + consumidor no Score; **E2E validado na stack Docker** (partidas publicam, Score consome) | QA §3 / Arquitetura | 🔴 | ◑ |
 | 5 | ✅ Score Service (Python) — consumer Kafka + Redis/PostgreSQL + `GET /api/scores` (+ `/api/scores/player`, CORS); **E2E validado** (3 rankings populados) | QA §3 / Arquitetura | 🔴 | ● |
 | 6 | ✅ Redis — ranking por minigame alimentado pelo Score e **lido E2E pela API** (`ZREVRANGE`/`ZSCORE`, sem varrer o PG) | QA §3 / Arquitetura | 🟠 | ◑ |
@@ -47,7 +47,7 @@ O ciclo v1 fechou **todos os bugs de UI/UX e de consistência de gameplay** apon
 | 9.5 | ✅ Código morto: inimigo `formacao` | Revisão v1 (E3) | 🟡 | ◐ |
 | 9.6 | ✅ Segredos/credenciais por variável de ambiente (deploy AWS) | Deploy | 🟠 | ◐ |
 | 9.7 | ✅ Guia de Deploy AWS criado + v1 marcada como histórica (link morto resolvido) + README aponta p/ o guia | Revisão v2 | 🟡 | ◐ |
-| 10 | 🟡 Replicação do PostgreSQL (Primary-Replica) — setup pronto (`postgres.sh primary\|replica`, streaming); falta executar/validar na AWS | QA §3 / Arquitetura | 🟠 | ◑ |
+| 10 | 🟡 Replicação do PostgreSQL (Primary-Replica) — setup pronto (primário no `deploy1.sh`, réplica no `deploy2.sh`, streaming); falta executar/validar na AWS | QA §3 / Arquitetura | 🟠 | ◑ |
 | 11 | 🟡 Particionamento de dados — tabela `scores` particionada por LISTA do minigame (validado offline; falta E2E em PG real) | QA §3 / Arquitetura | 🟡 | ◑ |
 | 12 | 🟡 Bateria de testes na AWS — clientes simulados (req. 4.2) + dados de teste (req. 4.8) entregues e validados localmente; falta a bateria na AWS | QA §4 | 🟠 | ◑ |
 
@@ -89,11 +89,13 @@ Comparação entre **o que está sendo construído** e o diagrama de referência
 
 ---
 
-## 3. Distribuição na AWS — 1 serviço por EC2 + balanceamento  🔴 ● — item 3
+## 3. Distribuição na AWS — balanceamento (deploy condensado em 6 EC2)  🔴 ● — item 3
 
 Este é o **novo eixo central da v2**: sair do `docker-compose` único e colocar **cada serviço em sua própria instância EC2**, com balanceamento de carga, **sem Kubernetes**.
 
-### 3.1 Topologia de instâncias (1 serviço por EC2)
+> **Atualização (execução):** a conta AWS limita a **9 instâncias simultâneas**, então o deploy foi **condensado para 6 máquinas** (`deploy/aws/deploy1.sh`…`deploy6.sh`) — mantendo em EC2 **separadas** o que mais importa: o **primário × réplica** do PostgreSQL (item 10) e os **3 engines isolados** (particionamento funcional). A topologia final, com a **descrição dos 6 deploys**, está no **[Guia de Deploy AWS §1](Guia%20de%20Deploy%20AWS.md)**. A tabela 3.1 abaixo é o **ideal "1 serviço por EC2"** que inspirou o agrupamento.
+
+### 3.1 Topologia de instâncias (ideal 1-serviço-por-EC2 — condensado em 6 na execução; ver nota acima)
 
 | Instância EC2 | Serviço | Porta | Exposição |
 |---|---|---|---|
@@ -254,7 +256,7 @@ Verificação (atualizada após os itens 1/4/5): a **física saiu do gateway** e
 - **Situação:** instância única.
 - **Entregar:** topologia Primary-Replica (escritas no primário, leituras de leaderboard nas réplicas) — uma EC2 primária e uma réplica (item 3).
 - **Aceite:** leituras do ranking servidas por réplica sem onerar o primário.
-- **🟡 Preparado (v2):** [deploy/aws/postgres.sh](../../deploy/aws/postgres.sh) sobe o **primário** (`wal_level=replica`, `max_wal_senders`, papel de replicação + `pg_hba` da VPC) e a **réplica** (`pg_basebackup -R` → standby somente-leitura). **Falta** executar/validar na AWS — [Guia §5.6](Guia%20de%20Deploy%20AWS.md) (`pg_is_in_recovery()`; escrita no primário → leitura na réplica).
+- **🟡 Preparado (v2):** [deploy/aws/lib/postgres.sh](../../deploy/aws/lib/postgres.sh) sobe o **primário** (`wal_level=replica`, `max_wal_senders`, papel de replicação + `pg_hba` da VPC; chamado pelo `deploy1.sh`) e a **réplica** (`pg_basebackup -R` → standby somente-leitura; chamado pelo `deploy2.sh`). **Falta** executar/validar na AWS — [Guia §5.6](Guia%20de%20Deploy%20AWS.md) (`pg_is_in_recovery()`; escrita no primário → leitura na réplica).
 
 ### 6.2 🟡 Particionamento de dados (item 11)
 
@@ -286,7 +288,7 @@ Verificação (atualizada após os itens 1/4/5): a **física saiu do gateway** e
 
 ### 8.1 Técnico (arquitetura e código)
 
-- [ ] Os 3 jogos rodam em **engines isolados** ✅ (item 1 — 3 processos independentes, isolamento validado), cada um em sua **EC2** 🟡 (item 3 — scripts `deploy/aws/engine.sh` + Guia prontos; falta executar).
+- [ ] Os 3 jogos rodam em **engines isolados** ✅ (item 1 — 3 processos independentes, isolamento validado), cada um em sua **EC2** 🟡 (item 3 — `deploy4.sh`/`deploy5.sh`/`deploy6.sh`, um engine por EC2, + Guia prontos; falta executar).
 - [ ] O canal de jogo usa **WebRTC** 🟡 (item 2 — hot path no DataChannel com fallback Socket.io implementado; falta validar no navegador + medir latência); WS/REST para lobby/sinalização/login ✅.
 - [ ] **Cada serviço em uma EC2 distinta** 🟡 (item 3 — scripts nativos + Guia prontos; **sem ALB**: o **matchmaking** do gateway distribui as partidas entre engines). Falta o usuário subir as EC2.
 - [x] Fim de partida flui por **Kafka → Score Service → Redis/PostgreSQL** ✅ (itens 4, 5, 6 — **validado E2E na stack Docker**: partidas publicam, Score consome e materializa Redis+PG; produtor resiliente, tolerância a falha por commit-após-persistir).
@@ -294,7 +296,7 @@ Verificação (atualizada após os itens 1/4/5): a **física saiu do gateway** e
 - [x] Validação de sessão via **gRPC** ao Auth ✅ (item 8 — implementado/validado: build C# + cliente em 5 cenários; E2E ao vivo no [Guia §5.4](Guia%20de%20Deploy%20AWS.md)).
 - [x] Validações de usuário/senha **server-side** no auth canônico; segredos por variável de ambiente; **auth canônico decidido** (itens 9.1 ✅, 9.2 ✅, 9.6 ✅). *(C# oficial — compila aqui; lite alinhado a bcrypt/`{token}`/2h)*
 - [x] Sem manifestos k8s, sem código morto, sem divergência código×GDD, links da doc válidos (itens 9.3 ✅, 9.4 ✅, 9.5 ✅, **9.7 ✅** — Guia de Deploy AWS + v1 marcada como histórica + README atualizado).
-- [ ] PostgreSQL com **replicação** (item 10 🟡 — setup `postgres.sh primary|replica` pronto; falta executar na AWS) e **particionamento** (item 11 🟡 — `scores` particionada por minigame, validada offline; E2E roteirizado no Guia §5.5).
+- [ ] PostgreSQL com **replicação** (item 10 🟡 — setup pronto: primário no `deploy1.sh`, réplica no `deploy2.sh`; falta executar na AWS) e **particionamento** (item 11 🟡 — `scores` particionada por minigame, validada offline; E2E roteirizado no Guia §5.5).
 
 ### 8.2 Conformidade com a especificação do trabalho
 

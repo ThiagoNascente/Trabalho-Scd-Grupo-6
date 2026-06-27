@@ -5,7 +5,7 @@
 #   sudo bash auth.sh
 # ==========================================================================
 set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "$SCRIPT_DIR/common.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "$SCRIPT_DIR/../common.sh"
 need_root "$@"
 require_env JWT_SECRET POSTGRES_PASSWORD PG_HOST_PRIVATE
 

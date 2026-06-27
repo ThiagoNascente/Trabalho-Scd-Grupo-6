@@ -5,7 +5,7 @@
 # Alvo: Ubuntu 22.04/24.04.   Uso:  sudo bash frontend.sh
 # ==========================================================================
 set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "$SCRIPT_DIR/common.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "$SCRIPT_DIR/../common.sh"
 need_root "$@"
 require_env AUTH_HOST_PUBLIC GATEWAY_HOST_PUBLIC SCORE_HOST_PUBLIC \
             ENGINE1_HOST_PUBLIC ENGINE2_HOST_PUBLIC ENGINE3_HOST_PUBLIC

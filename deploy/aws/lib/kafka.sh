@@ -6,7 +6,7 @@
 # Requer KAFKA_HOST_PRIVATE no env.aws (advertised.listeners = esse IP privado).
 # ==========================================================================
 set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "$SCRIPT_DIR/common.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "$SCRIPT_DIR/../common.sh"
 need_root "$@"
 require_env KAFKA_HOST_PRIVATE
 

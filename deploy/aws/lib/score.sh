@@ -5,7 +5,7 @@
 # GET /api/scores. Alvo: Ubuntu 22.04/24.04.   Uso:  sudo bash score.sh
 # ==========================================================================
 set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "$SCRIPT_DIR/common.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; . "$SCRIPT_DIR/../common.sh"
 need_root "$@"
 require_env POSTGRES_PASSWORD PG_HOST_PRIVATE REDIS_HOST_PRIVATE KAFKA_HOST_PRIVATE
 
