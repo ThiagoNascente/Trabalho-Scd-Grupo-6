@@ -28,9 +28,8 @@ cada máquina, na ordem certa**. Re-deploy depois vira **um comando só**.
    ```bash
    sudo apt-get update -y && sudo apt-get install -y git rsync openssh-client openssl
    git clone <URL_DO_REPO> && cd Trabalho-Scd-Grupo-6
-   # copie a sua chave .pem para esta máquina (do seu PC):
-   #   scp -i sua-chave.pem sua-chave.pem ubuntu@<DNS_DA_7a>:~/spaceship-key.pem
-   chmod 600 ~/spaceship-key.pem
+   # copie a sua chave .pem para esta máquina (do seu PC), o nome deve ser spaceship-key.pem
+   chmod 600 spaceship-key.pem
    ```
 
 ### Rodar o deploy

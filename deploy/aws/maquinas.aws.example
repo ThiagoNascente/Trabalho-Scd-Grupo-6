@@ -28,7 +28,7 @@
 
 # --- Acesso SSH (igual para todas; é o par de chaves das EC2) ---
 SSH_USER=ubuntu                 # AMI Ubuntu => "ubuntu"  (Amazon Linux => "ec2-user")
-SSH_KEY=~/spaceship-key.pem     # caminho da chave .pem NESTA 7ª máquina (use chmod 600)
+SSH_KEY=spaceship-key.pem     # caminho da chave .pem NESTA 7ª máquina (use chmod 600)
 
 # Onde colocar o repositório em cada máquina (pode deixar assim):
 REMOTE_DIR=Trabalho-Scd-Grupo-6
