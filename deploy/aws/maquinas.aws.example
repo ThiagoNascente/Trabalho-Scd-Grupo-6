@@ -1,0 +1,71 @@
+# ============================================================================
+# maquinas.aws — a LISTA das suas 6 máquinas EC2, para o DEPLOY AUTOMÁTICO.
+# ----------------------------------------------------------------------------
+# Copie para "maquinas.aws" (na 7ª máquina, a orquestradora) e preencha.
+#
+#   cp deploy/aws/maquinas.aws.example deploy/aws/maquinas.aws
+#   nano deploy/aws/maquinas.aws
+#   bash deploy/aws/deploy-all.sh
+#
+# O deploy-all.sh LÊ este arquivo, CONECTA nas 6 EC2, DESCOBRE sozinho o IP
+# privado e o DNS público de cada uma, GERA o env.aws e RODA o deployN.sh certo
+# em cada máquina, na ordem certa. Você quase não preenche nada aqui.
+# ----------------------------------------------------------------------------
+# COMO PREENCHER cada *_SSH  (é como ESTA 7ª máquina alcança as outras 6):
+#
+#   • 7ª máquina DENTRO da mesma VPC e no Security Group spaceship-sg
+#       -> use o IP PRIVADO de cada EC2. A Regra 1 do spaceship-sg (todo o
+#          tráfego do próprio SG) já libera o SSH interno: NÃO precisa abrir nada.
+#       -> jeito recomendado (mais simples e nada exposto à internet).
+#
+#   • 7ª máquina FORA (seu PC, outra rede)
+#       -> use o DNS PÚBLICO de cada EC2 e libere a porta 22 (SSH) vinda do IP
+#          desta 7ª máquina no Security Group.
+#
+# Os campos *_PRIVATE_IP e APP_PUBLIC_DNS podem ficar VAZIOS: o script descobre
+# sozinho perguntando para a própria EC2 (metadata). Preencha só se quiser fixar.
+# ============================================================================
+
+# --- Acesso SSH (igual para todas; é o par de chaves das EC2) ---
+SSH_USER=ubuntu                 # AMI Ubuntu => "ubuntu"  (Amazon Linux => "ec2-user")
+SSH_KEY=~/spaceship-key.pem     # caminho da chave .pem NESTA 7ª máquina (use chmod 600)
+
+# Onde colocar o repositório em cada máquina (pode deixar assim):
+REMOTE_DIR=Trabalho-Scd-Grupo-6
+
+# Sub-rede privada da VPC (vai no pg_hba do Postgres). Padrão da VPC default da AWS:
+VPC_CIDR=172.31.0.0/16
+
+# --- Segredos (deixe VAZIO para gerar sozinho; ficam salvos no env.aws e são
+#     REAPROVEITADOS nos próximos deploys — não troque entre execuções) ---
+JWT_SECRET=
+POSTGRES_PASSWORD=
+PG_REPL_PASSWORD=
+
+# ============================ AS 6 MÁQUINAS ============================
+# Em cada bloco, preencha SÓ o *_SSH (o resto é opcional/descoberto sozinho).
+
+# Máquina 1 — spaceship-data1   (deploy1: PostgreSQL primário + Redis)
+DATA1_SSH=
+DATA1_PRIVATE_IP=
+
+# Máquina 2 — spaceship-data2   (deploy2: Kafka + PostgreSQL réplica)
+DATA2_SSH=
+DATA2_PRIVATE_IP=
+
+# Máquina 3 — spaceship-app     (deploy3: Auth + Gateway + Score + Frontend)
+APP_SSH=
+APP_PRIVATE_IP=
+APP_PUBLIC_DNS=                 # DNS público que o NAVEGADOR usa (vazio = descobre sozinho)
+
+# Máquina 4 — spaceship-engine1 (deploy4: Game Engine jogo1)
+ENGINE1_SSH=
+ENGINE1_PRIVATE_IP=
+
+# Máquina 5 — spaceship-engine2 (deploy5: Game Engine jogo2)
+ENGINE2_SSH=
+ENGINE2_PRIVATE_IP=
+
+# Máquina 6 — spaceship-engine3 (deploy6: Game Engine jogo3)
+ENGINE3_SSH=
+ENGINE3_PRIVATE_IP=

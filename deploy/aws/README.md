@@ -11,16 +11,79 @@ o serviço no **systemd** — sobe no boot e reinicia se cair) e usa a configura
 > **[README na raiz do projeto](../../README.md)**.
 > O Docker (`docker-compose.yml`) é **só para teste local** — não use na AWS.
 
+## ⚡ Jeito RÁPIDO: deploy das 6 a partir de UMA máquina (`deploy-all.sh`)
+
+Em vez de entrar em cada uma das 6 EC2 e repetir os passos à mão, você sobe **uma
+7ª EC2 (a "orquestradora")** que faz tudo sozinha: conecta nas 6 por SSH, descobre
+os IPs/DNS, **gera o `env.aws`**, manda o código e **roda o `deployN.sh` certo em
+cada máquina, na ordem certa**. Re-deploy depois vira **um comando só**.
+
+### Preparar a 7ª máquina (uma vez)
+
+1. Abra **mais uma EC2 Ubuntu** (uma `t3.small` basta — ela só orquestra, não roda
+   serviço). **O ideal é colocá-la no mesmo Security Group `spaceship-sg`**: assim a
+   *Regra 1* (todo o tráfego do próprio SG) já libera o SSH dela para as 6 **pelo IP
+   privado** — você **não abre porta nenhuma nova**.
+2. Nela: instale o necessário e traga o repositório e a chave `.pem` das EC2:
+   ```bash
+   sudo apt-get update -y && sudo apt-get install -y git rsync openssh-client openssl
+   git clone <URL_DO_REPO> && cd Trabalho-Scd-Grupo-6
+   # copie a sua chave .pem para esta máquina (do seu PC):
+   #   scp -i sua-chave.pem sua-chave.pem ubuntu@<DNS_DA_7a>:~/spaceship-key.pem
+   chmod 600 ~/spaceship-key.pem
+   ```
+
+### Rodar o deploy
+
+```bash
+cp deploy/aws/maquinas.aws.example deploy/aws/maquinas.aws
+nano deploy/aws/maquinas.aws      # preencha SÓ o *_SSH de cada máquina (e SSH_KEY)
+bash deploy/aws/deploy-all.sh
+```
+
+No `maquinas.aws` você quase não preenche nada — só **como conectar** em cada EC2
+(`*_SSH`) e o caminho da chave (`SSH_KEY`). O **IP privado** e o **DNS público** de
+cada máquina o script **descobre sozinho** (perguntando à própria EC2 via metadata),
+então isso **sobrevive à troca do DNS público** quando você desliga/religa as EC2 —
+é só rodar de novo. Os **segredos** (`JWT_SECRET`, senhas) são **gerados na 1ª vez** e
+**reaproveitados** nas próximas (ficam no `env.aws`, que não vai para o Git).
+
+Como preencher `*_SSH`:
+- **7ª máquina no `spaceship-sg` (recomendado):** use o **IP privado** de cada EC2.
+- **7ª máquina fora (seu PC):** use o **DNS público** de cada EC2 e libere a porta 22
+  (SSH) vinda do IP dela no Security Group.
+
+### Opções úteis
+
+| Comando | Para quê |
+|---|---|
+| `bash deploy/aws/deploy-all.sh --dry-run` | só mostra o plano e os endereços descobertos; **não altera nada** |
+| `bash deploy/aws/deploy-all.sh --yes` | não pergunta "continuar?" (bom para automatizar) |
+| `bash deploy/aws/deploy-all.sh --roles=engine2` | re-deploya **só** uma máquina (ex.: mudou o código de um engine) — as outras já no ar |
+| `bash deploy/aws/deploy-all.sh --skip-sync` | não reenvia o código; só regenera o `env.aws` e roda os deploys |
+
+**O que ele faz, na ordem:** `data1 → data2 → app` em **série** (a réplica do Postgres
+depende do primário; o app depende de Postgres/Redis/Kafka) e os **3 engines em
+paralelo** (são isolados — ganho de tempo). No fim, faz um **smoke test** e imprime o
+link do jogo. Logs por máquina ficam em `deploy/aws/.deploy-logs/`. É **idempotente**:
+pode rodar quantas vezes quiser. Por baixo, ele usa **exatamente** os mesmos
+`deploy1.sh … deploy6.sh` abaixo — só automatiza o trabalho manual.
+
 ## Estrutura
 
-- **`deploy1.sh` … `deploy6.sh`** — o que **você roda** (um por EC2).
+- **`deploy-all.sh`** — o **orquestrador** (jeito rápido): roda na 7ª máquina e faz o
+  deploy das 6 sozinho. Usa os `deployN.sh` por baixo.
+- **`maquinas.aws.example`** — modelo do **inventário** do `deploy-all.sh` (a lista das
+  6 EC2); copie para `maquinas.aws` e preencha os `*_SSH`.
+- **`deploy1.sh` … `deploy6.sh`** — o que **você roda** (um por EC2), no jeito manual.
 - **`lib/`** — as peças por serviço (`postgres.sh`, `redis.sh`, `kafka.sh`,
   `auth.sh`, `engine.sh`, `gateway.sh`, `score.sh`, `frontend.sh`) que os
   `deployN.sh` chamam. Não precisa rodá-las à mão.
 - **`common.sh`** — funções/variáveis compartilhadas (sourced pelos scripts).
-- **`env.aws.example`** — modelo de config; copie para `env.aws` e preencha.
+- **`env.aws.example`** — modelo de config; o `deploy-all.sh` **gera** o `env.aws`
+  sozinho. No jeito manual, copie para `env.aws` e preencha.
 
-## Uso (em cada EC2)
+## Uso MANUAL (em cada EC2) — alternativa ao `deploy-all.sh`
 
 ```bash
 # 1) clonar o repo e preparar a config (uma vez por máquina)

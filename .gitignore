@@ -19,6 +19,9 @@ auth-service/obj/
 .env.local
 # Config preenchida do deploy AWS (segredos + IPs) — versionar só o .example
 deploy/aws/env.aws
+# Inventário preenchido do deploy automático (chave/IPs) e logs por máquina
+deploy/aws/maquinas.aws
+deploy/aws/.deploy-logs/
 
 # Arquivos do Sistema Operacional
 .DS_Store

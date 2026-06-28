@@ -343,6 +343,13 @@ vivas dentro da VPC.
 
 ### 6.4 Subida (ordem importa)
 
+> **⚡ Atalho (recomendado): deploy das 6 a partir de UMA máquina.** Em vez de repetir
+> os passos abaixo em cada EC2, suba uma **7ª EC2 orquestradora** e rode **um comando**:
+> ela conecta nas 6, gera o `env.aws`, manda o código e roda os `deployN.sh` na ordem
+> certa. Passo a passo em **[`deploy/aws/README.md`](deploy/aws/README.md)** (seção
+> *"Jeito RÁPIDO: `deploy-all.sh`"*). O procedimento manual abaixo continua valendo
+> (é o que o `deploy-all.sh` automatiza por baixo).
+
 Em **cada** EC2, uma vez:
 ```bash
 sudo apt-get update -y && sudo apt-get install -y git
