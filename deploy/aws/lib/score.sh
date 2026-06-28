@@ -11,7 +11,10 @@ require_env POSTGRES_PASSWORD PG_HOST_PRIVATE REDIS_HOST_PRIVATE KAFKA_HOST_PRIV
 
 log "instalando Python + venv…"
 apt-get update -y
-apt-get install -y python3 python3-venv python3-pip
+# build-essential + libpq-dev + python3-dev: necessários para COMPILAR o
+# psycopg2-binary quando o pip não encontra um binário pronto (wheel) para a
+# versão de Python da máquina. libpq-dev é quem fornece o 'pg_config'.
+apt-get install -y python3 python3-venv python3-pip python3-dev build-essential libpq-dev
 APP="$REPO_ROOT/score-service"
 VENV="/opt/spaceship/score-venv"
 python3 -m venv "$VENV"
