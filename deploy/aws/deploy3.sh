@@ -17,9 +17,9 @@
 #
 # Variáveis no env.aws: JWT_SECRET, POSTGRES_PASSWORD; PG_HOST_PRIVATE e
 # REDIS_HOST_PRIVATE = deploy1; KAFKA_HOST_PRIVATE = deploy2; AUTH_HOST_PRIVATE
-# = IP PRIVADO desta máquina; ENGINE{1,2,3}_HOST_PRIVATE = deploy4/5/6.
-# AUTH_HOST_PUBLIC = GATEWAY_HOST_PUBLIC = SCORE_HOST_PUBLIC = o DNS PÚBLICO
-# desta máquina; ENGINE{1,2,3}_HOST_PUBLIC = DNS público de deploy4/5/6.
+# = IP PRIVADO desta máquina; ENGINE{1,2,3}_HOST_PRIVATE = deploy4/5/6 (o gateway
+# alcança os engines pela rede interna). AUTH_HOST_PUBLIC = GATEWAY_HOST_PUBLIC =
+# SCORE_HOST_PUBLIC = o DNS PÚBLICO desta máquina.
 # Alvo: Ubuntu 22.04/24.04.
 # ==========================================================================
 set -euo pipefail

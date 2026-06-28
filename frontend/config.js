@@ -28,7 +28,7 @@ window.APP_CONFIG = {
     // --- Hosts por serviço (deploy distribuído / 1 serviço por EC2) ---
     // Vazio ("") => usa HOST acima. Preencha com o DNS/IP público de cada EC2.
     AUTH_HOST: "",      // EC2 do Auth Service (REST/login/registro)
-    GATEWAY_HOST: "",   // EC2 do Gateway (lobby/controle/sinalização)
+    GATEWAY_HOST: "",   // EC2 do Gateway (lobby/controle/relay do tempo real)
     SCORE_HOST: "",     // EC2 do Score Service (leaderboard)
 
     AUTH_PORT: 5000,
@@ -38,16 +38,8 @@ window.APP_CONFIG = {
     // Sem ALB nesta versão: o frontend fala direto com o DNS público do Score.
     SCORE_PORT: 8000,
 
-    // --- Canal de jogo em tempo real (WebRTC / item 2) ---
-    // USE_WEBRTC: liga o DataChannel (UDP, baixa latência) para inputs e estado
-    // de partida. Se o canal não abrir, o cliente cai automaticamente para o
-    // Socket.io (fallback) — desligar aqui força o transporte antigo.
-    USE_WEBRTC: true,
-    // Host de cada Game Engine (deploy distribuído — 1 EC2 por engine, item 3).
-    // Vazio => usa HOST. Preencha com o IP/DNS público da EC2 de cada engine
-    // (o WebRTC conecta DIRETO no engine, sem passar pelo gateway).
-    ENGINE_HOSTS: { jogo1: "", jogo2: "", jogo3: "" },
-    // Porta de SINALIZAÇÃO (geckos) de cada Game Engine. O cliente abre o
-    // DataChannel direto no engine do jogo escolhido (host acima + porta).
-    ENGINE_GECKOS_PORTS: { jogo1: 5001, jogo2: 5002, jogo3: 5003 }
+    // Cadência de tiro do jogador, em ms (deve ESPELHAR o SHOOT_COOLDOWN do
+    // servidor em game-engine/shared/constants.js). Limita o disparo do cliente ao
+    // ritmo do servidor e evita o "som bugado" ao segurar Espaço (auto-repeat do teclado).
+    SHOOT_COOLDOWN_MS: 280
 };

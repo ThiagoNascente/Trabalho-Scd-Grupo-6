@@ -1,8 +1,16 @@
 # Plano de Correções Pendentes para a v2
 
+> ⚠️ **REGISTRO HISTÓRICO (até 2026-06-27).** Documento de acompanhamento do
+> processo, mantido como registro. **A fonte de verdade atual é o
+> [README na raiz](../../README.md)** (visão geral, guias local/AWS, justificativa e
+> checklist). Mudança posterior importante: o **WebRTC foi REMOVIDO** do projeto
+> (não funcionava) — o canal de jogo em tempo real passou a ser **Socket.io** via
+> gateway-relay. Trechos abaixo que citam "WebRTC" (em especial o "item 2") são
+> desse contexto anterior.
+
 **Projeto:** Spaceship — Jogo Online de Naves (Minigames 1, 2 e 3)
 **Data:** 2026-06-19
-**Base:** [Checklist de Requisitos da Especificação](../Requisitos%20do%20trabalho/Checklist%20de%20Requisitos%20da%20Especificação.md) · [relatorio_QA_v1.md](../v1/relatorio_QA_v1.md) · [QA_Status_v1.md](../v1/QA_Status_v1.md) · [Possiveis_problemas_v1.md](../v1/Possiveis_problemas_v1.md) · [GameDesignDocument.md](../GameDesignDocument.md) · [descrição da arquitetura.md](../Arquitetura/descrição%20da%20arquitetura.md) · [Arquitetura_code.md (mermaid)](../Arquitetura/Arquitetura_code.md)
+**Base:** [Checklist de Requisitos da Especificação](../../README.md) · [relatorio_QA_v1.md](../v1/relatorio_QA_v1.md) · [QA_Status_v1.md](../v1/QA_Status_v1.md) · [Possiveis_problemas_v1.md](../v1/Possiveis_problemas_v1.md) · [GameDesignDocument.md](../GameDesignDocument.md) · [descrição da arquitetura.md](../Arquitetura/descrição%20da%20arquitetura.md) · [Arquitetura_code.md (mermaid)](../Arquitetura/Arquitetura_code.md)
 **Responsáveis:** Thiago e Vinícius (Programação) · Moisés (GDD) · Ana Liz (QA)
 **Acompanhamento:** o status vivo de cada item está no [Rastreio de Evolução](Rastreio%20de%20Evolução.md) (checklist operacional, atualizado a cada sessão). Este Plano guarda o **detalhe e o critério de aceite**; o Rastreio responde **"onde estamos agora"**.
 
@@ -34,7 +42,7 @@ O ciclo v1 fechou **todos os bugs de UI/UX e de consistência de gameplay** apon
 |---|---|---|---|---|
 | 1 | ✅ Game Engines isolados — agora 3 processos independentes (`game-engine`, GAME=jogo1\|2\|3); falta só a EC2 dedicada (item 3) | QA §3 / Arquitetura | 🔴 | ● |
 | 2 | 🟡 Migração WebSockets → **WebRTC** (canal de jogo) — implementado com fallback; falta validar handshake no navegador + medir latência | QA §3 / decisão v2 | 🔴 | ● |
-| 3 | 🟡 **Distribuição na AWS** (balanceamento por matchmaking, **sem ALB**) — **condensado em 6 EC2** (`deploy/aws/deploy1.sh`…`deploy6.sh`; limite de 9 instâncias da conta) + [Guia de Deploy AWS](Guia%20de%20Deploy%20AWS.md) prontos; falta o usuário executar | Possiveis_problemas / decisão v2 | 🔴 | ● |
+| 3 | 🟡 **Distribuição na AWS** (balanceamento por matchmaking, **sem ALB**) — **condensado em 6 EC2** (`deploy/aws/deploy1.sh`…`deploy6.sh`; limite de 9 instâncias da conta) + [Guia de Deploy AWS](../../README.md) prontos; falta o usuário executar | Possiveis_problemas / decisão v2 | 🔴 | ● |
 | 4 | ✅ Apache Kafka — produtor **resiliente** nos 3 engines + consumidor no Score; **E2E validado na stack Docker** (partidas publicam, Score consome) | QA §3 / Arquitetura | 🔴 | ◑ |
 | 5 | ✅ Score Service (Python) — consumer Kafka + Redis/PostgreSQL + `GET /api/scores` (+ `/api/scores/player`, CORS); **E2E validado** (3 rankings populados) | QA §3 / Arquitetura | 🔴 | ● |
 | 6 | ✅ Redis — ranking por minigame alimentado pelo Score e **lido E2E pela API** (`ZREVRANGE`/`ZSCORE`, sem varrer o PG) | QA §3 / Arquitetura | 🟠 | ◑ |
@@ -93,7 +101,7 @@ Comparação entre **o que está sendo construído** e o diagrama de referência
 
 Este é o **novo eixo central da v2**: sair do `docker-compose` único e colocar **cada serviço em sua própria instância EC2**, com balanceamento de carga, **sem Kubernetes**.
 
-> **Atualização (execução):** a conta AWS limita a **9 instâncias simultâneas**, então o deploy foi **condensado para 6 máquinas** (`deploy/aws/deploy1.sh`…`deploy6.sh`) — mantendo em EC2 **separadas** o que mais importa: o **primário × réplica** do PostgreSQL (item 10) e os **3 engines isolados** (particionamento funcional). A topologia final, com a **descrição dos 6 deploys**, está no **[Guia de Deploy AWS §1](Guia%20de%20Deploy%20AWS.md)**. A tabela 3.1 abaixo é o **ideal "1 serviço por EC2"** que inspirou o agrupamento.
+> **Atualização (execução):** a conta AWS limita a **9 instâncias simultâneas**, então o deploy foi **condensado para 6 máquinas** (`deploy/aws/deploy1.sh`…`deploy6.sh`) — mantendo em EC2 **separadas** o que mais importa: o **primário × réplica** do PostgreSQL (item 10) e os **3 engines isolados** (particionamento funcional). A topologia final, com a **descrição dos 6 deploys**, está no **[Guia de Deploy AWS §1](../../README.md)**. A tabela 3.1 abaixo é o **ideal "1 serviço por EC2"** que inspirou o agrupamento.
 
 ### 3.1 Topologia de instâncias (ideal 1-serviço-por-EC2 — condensado em 6 na execução; ver nota acima)
 
@@ -114,7 +122,7 @@ Este é o **novo eixo central da v2**: sair do `docker-compose` único e colocar
 
 ### 3.2 Balanceamento de carga
 
-> **Decisão v2 firmada:** o balanceamento fica **só no matchmaking do gateway** (escolhe o engine e devolve o endereço ao cliente). O **ALB é opcional** e **não** é usado por padrão — o frontend fala direto com o DNS público de cada serviço ([Guia de Deploy AWS](Guia%20de%20Deploy%20AWS.md)). O texto abaixo descreve o ALB apenas como alternativa.
+> **Decisão v2 firmada:** o balanceamento fica **só no matchmaking do gateway** (escolhe o engine e devolve o endereço ao cliente). O **ALB é opcional** e **não** é usado por padrão — o frontend fala direto com o DNS público de cada serviço ([Guia de Deploy AWS](../../README.md)). O texto abaixo descreve o ALB apenas como alternativa.
 
 - **Load Balancer (ALB) para HTTP/REST e sinalização:** roteia por caminho — `/` → frontend, `/api/auth` → auth, `/ws/lobby` → gateway, `/api/scores` → score. **Health checks** por target group.
 - **Tráfego de jogo (WebRTC/UDP) NÃO passa pelo ALB:** o ALB é L7/HTTP. O **balanceamento das partidas** acontece no **matchmaking**: o gateway escolhe qual `ec2-engine-N` hospeda a sala (por jogo e por carga) e devolve ao cliente o endereço daquela EC2; o cliente abre o WebRTC **direto** com ela. Isso atende ao requisito de "balancear a carga" e ao item de *divisão de servidores para salas abertas* do QA §3.
@@ -132,7 +140,7 @@ Este é o **novo eixo central da v2**: sair do `docker-compose` único e colocar
    - Auth/Score/Postgres/Redis/Kafka: portas abertas **apenas** para os SGs dos serviços que os consomem (rede privada da VPC).
 4. **Empacotamento e execução por instância (decisão v2 — SEM Docker na AWS):** cada serviço sobe **nativo** via `deploy/aws/<serviço>.sh` (instala a dependência nativa e registra um serviço **systemd**). Docker/`docker-compose` fica **só para desenvolvimento local**. *(Revisão: a versão anterior previa `docker run`/imagem por EC2; foi substituída por execução nativa a pedido do time.)*
 5. **Inicialização:** clonar o repo + `cp deploy/aws/env.aws.example deploy/aws/env.aws` (preencher segredos/IPs) + rodar o script do serviço; o **systemd** sobe no boot e reinicia se cair. (Sem Docker/imagens/`user-data` obrigatório.)
-6. **Guia de deploy AWS** ✔ — [Guia de Deploy AWS](Guia%20de%20Deploy%20AWS.md): passo a passo por instância + Security Groups + ordem + bateria de testes (item 5.7/12).
+6. **Guia de deploy AWS** ✔ — [Guia de Deploy AWS](../../README.md): passo a passo por instância + Security Groups + ordem + bateria de testes (item 5.7/12).
 
 ### 3.4 Aceite
 
@@ -159,7 +167,7 @@ Verificação (atualizada após os itens 1/4/5): a **física saiu do gateway** e
 - **Entregar:** cada Engine publica `match-completed` ao fim da partida (`kafkajs`); Score Service consome (cliente Kafka Python).
 - **Aceite:** com o Score Service **parado**, encerrar partidas **não perde** pontuação — ao subir o serviço, os eventos retidos são processados (Consistência Eventual).
 - **✔ Implementado (v2):** produtor `kafkajs` em [game-engine/kafka.js](../../game-engine/kafka.js) (`publishMatchCompleted`, tolerante a falha — nunca lança), inicializado em [game-engine/server.js](../../game-engine/server.js) e disparado nos 3 ganchos de fim de partida: Jogo 1 ([games/jogo1.js](../../game-engine/games/jogo1.js) `handleHit`), Jogo 2 ([games/jogo2.js](../../game-engine/games/jogo2.js) `fimDeJogo`) e Jogo 3 ([games/jogo3.js](../../game-engine/games/jogo3.js) `j3_gameOver`, vitória e derrota). Consumidor Python com **commit manual de offset após persistir** e `auto_offset_reset='earliest'` ([score-service/consumer.py](../../score-service/consumer.py)) → o aceite de Consistência Eventual fica garantido pela retenção do Kafka. Broker/tópico por env (`KAFKA_BROKER`/`MATCH_TOPIC`); compose injeta `kafka:29092` nos 3 engines + Score. **Validado:** sem broker e com broker morto o engine **não quebra** (fallback, testado node-side); a lógica do consumidor/ranking foi validada offline ([selftest.py](../../score-service/selftest.py)).
-- **✅ E2E validado (3ª rodada):** na stack Docker completa, partidas reais publicam `match-completed` e o Score consome → ranking populou ao vivo. O produtor virou **resiliente** ([game-engine/kafka.js](../../game-engine/kafka.js) `ensureProducer`): reconecta se o Kafka ficar pronto depois dos engines (corrige o bug que desativava a publicação no boot). **Resta** roteirizar o cenário de **retenção** (Score parado) para a demo — passos em [run.md](../../run.md).
+- **✅ E2E validado (3ª rodada):** na stack Docker completa, partidas reais publicam `match-completed` e o Score consome → ranking populou ao vivo. O produtor virou **resiliente** ([game-engine/kafka.js](../../game-engine/kafka.js) `ensureProducer`): reconecta se o Kafka ficar pronto depois dos engines (corrige o bug que desativava a publicação no boot). **Resta** roteirizar o cenário de **retenção** (Score parado) para a demo — passos em [README §5](../../README.md).
 
 ### 4.3 🔴 Score Service (Python/Flask) — `score-service/` (item 5)
 
@@ -182,7 +190,7 @@ Verificação (atualizada após os itens 1/4/5): a **física saiu do gateway** e
 - **Situação:** o gateway valida o JWT **localmente** (`jwt.verify(token, JWT_SECRET, ...)`, [game-gateway/index.js:47](../../game-gateway/index.js)); os engines também validam localmente ([game-engine/server.js:42](../../game-engine/server.js)).
 - **Entregar:** endpoint gRPC no Auth (C#) para validação de sessão, chamado pelo gateway na conexão/entrada de sala.
 - **Aceite:** revogar/expirar a sessão no Auth invalida novas conexões pelo gateway.
-- **✔ Implementado (v2):** contrato [auth.proto](../../auth-service/Protos/auth.proto) (cópia em [game-gateway/auth.proto](../../game-gateway/auth.proto)); servidor [AuthValidationService.cs](../../auth-service/Services/AuthValidationService.cs) numa porta **HTTP/2 separada** (`GRPC_PORT`/5005 em [Program.cs](../../auth-service/Program.cs)) valida assinatura/emissor/audiência/expiração **e a existência do usuário** (revogação real — um usuário removido invalida novas conexões); cliente [authClient.js](../../game-gateway/authClient.js) chamado em [game-gateway/index.js](../../game-gateway/index.js) com **fallback local** (erro de transporte → `jwt.verify`, sem quebrar a v1). `AUTH_GRPC_URL` no [docker-compose.yml](../../docker-compose.yml) e no [.env.example](../../.env.example). **Validado:** `dotnet build` (0 erros) + cliente em **5 cenários** (válido, revogação, assinatura inválida, fallback de transporte, modo local puro). E2E ao vivo C#↔Node↔PG roteirizado no [Guia de Deploy AWS §5.4](Guia%20de%20Deploy%20AWS.md).
+- **✔ Implementado (v2):** contrato [auth.proto](../../auth-service/Protos/auth.proto) (cópia em [game-gateway/auth.proto](../../game-gateway/auth.proto)); servidor [AuthValidationService.cs](../../auth-service/Services/AuthValidationService.cs) numa porta **HTTP/2 separada** (`GRPC_PORT`/5005 em [Program.cs](../../auth-service/Program.cs)) valida assinatura/emissor/audiência/expiração **e a existência do usuário** (revogação real — um usuário removido invalida novas conexões); cliente [authClient.js](../../game-gateway/authClient.js) chamado em [game-gateway/index.js](../../game-gateway/index.js) com **fallback local** (erro de transporte → `jwt.verify`, sem quebrar a v1). `AUTH_GRPC_URL` no [docker-compose.yml](../../docker-compose.yml) e no [.env.example](../../.env.example). **Validado:** `dotnet build` (0 erros) + cliente em **5 cenários** (válido, revogação, assinatura inválida, fallback de transporte, modo local puro). E2E ao vivo C#↔Node↔PG roteirizado no [Guia de Deploy AWS §5.4](../../README.md).
 
 ### 4.6 🔴 Leaderboard global (item 7)
 
@@ -246,7 +254,7 @@ Verificação (atualizada após os itens 1/4/5): a **física saiu do gateway** e
 - **Situação:** o `QA_Status_v1.md` referenciava `DEPLOYMENT_GUIDE.md` (removido) e caminhos antigos; a doc foi reorganizada (`Docs/v1`, `Docs/v2`).
 - **Entregar:** **novo guia de deploy AWS** (passo a passo do item 3) e correção dos links relativos.
 - **Aceite:** todos os links da pasta `Docs/` resolvem.
-- **✔ Concluído (v2):** [Guia de Deploy AWS](Guia%20de%20Deploy%20AWS.md) (topologia 1-serviço-por-EC2, Security Groups, ordem de subida e bateria de testes) + [deploy/aws/README.md](../../deploy/aws/README.md). Os docs de `Docs/v1/*` ganharam aviso de **histórico/superado** — isso resolve a referência morta a `DEPLOYMENT_GUIDE.md` e aos manifestos `k8s/`. O [README.md](../../README.md) aponta para o guia e marca o Docker como **só desenvolvimento local**.
+- **✔ Concluído (v2):** [Guia de Deploy AWS](../../README.md) (topologia 1-serviço-por-EC2, Security Groups, ordem de subida e bateria de testes) + [deploy/aws/README.md](../../deploy/aws/README.md). Os docs de `Docs/v1/*` ganharam aviso de **histórico/superado** — isso resolve a referência morta a `DEPLOYMENT_GUIDE.md` e aos manifestos `k8s/`. O [README.md](../../README.md) aponta para o guia e marca o Docker como **só desenvolvimento local**.
 
 ---
 
@@ -257,7 +265,7 @@ Verificação (atualizada após os itens 1/4/5): a **física saiu do gateway** e
 - **Situação:** instância única.
 - **Entregar:** topologia Primary-Replica (escritas no primário, leituras de leaderboard nas réplicas) — uma EC2 primária e uma réplica (item 3).
 - **Aceite:** leituras do ranking servidas por réplica sem onerar o primário.
-- **🟡 Preparado (v2):** [deploy/aws/lib/postgres.sh](../../deploy/aws/lib/postgres.sh) sobe o **primário** (`wal_level=replica`, `max_wal_senders`, papel de replicação + `pg_hba` da VPC; chamado pelo `deploy1.sh`) e a **réplica** (`pg_basebackup -R` → standby somente-leitura; chamado pelo `deploy2.sh`). **Falta** executar/validar na AWS — [Guia §5.6](Guia%20de%20Deploy%20AWS.md) (`pg_is_in_recovery()`; escrita no primário → leitura na réplica).
+- **🟡 Preparado (v2):** [deploy/aws/lib/postgres.sh](../../deploy/aws/lib/postgres.sh) sobe o **primário** (`wal_level=replica`, `max_wal_senders`, papel de replicação + `pg_hba` da VPC; chamado pelo `deploy1.sh`) e a **réplica** (`pg_basebackup -R` → standby somente-leitura; chamado pelo `deploy2.sh`). **Falta** executar/validar na AWS — [Guia §5.6](../../README.md) (`pg_is_in_recovery()`; escrita no primário → leitura na réplica).
 
 ### 6.2 🟡 Particionamento de dados (item 11)
 
@@ -294,14 +302,14 @@ Verificação (atualizada após os itens 1/4/5): a **física saiu do gateway** e
 - [ ] **Cada serviço em uma EC2 distinta** 🟡 (item 3 — scripts nativos + Guia prontos; **sem ALB**: o **matchmaking** do gateway distribui as partidas entre engines). Falta o usuário subir as EC2.
 - [x] Fim de partida flui por **Kafka → Score Service → Redis/PostgreSQL** ✅ (itens 4, 5, 6 — **validado E2E na stack Docker**: partidas publicam, Score consome e materializa Redis+PG; produtor resiliente, tolerância a falha por commit-após-persistir).
 - [x] Existe **leaderboard global por minigame** ponta a ponta ✅ (item 7 — backend `GET /api/scores` + tela "Ranking Global" (top 5) + recorde pessoal no Command Center; **confirmado visualmente pelo usuário**).
-- [x] Validação de sessão via **gRPC** ao Auth ✅ (item 8 — implementado/validado: build C# + cliente em 5 cenários; E2E ao vivo no [Guia §5.4](Guia%20de%20Deploy%20AWS.md)).
+- [x] Validação de sessão via **gRPC** ao Auth ✅ (item 8 — implementado/validado: build C# + cliente em 5 cenários; E2E ao vivo no [Guia §5.4](../../README.md)).
 - [x] Validações de usuário/senha **server-side** no auth canônico; segredos por variável de ambiente; **auth canônico decidido** (itens 9.1 ✅, 9.2 ✅, 9.6 ✅). *(C# oficial — compila aqui; lite alinhado a bcrypt/`{token}`/2h)*
 - [x] Sem manifestos k8s, sem código morto, sem divergência código×GDD, links da doc válidos (itens 9.3 ✅, 9.4 ✅, 9.5 ✅, **9.7 ✅** — Guia de Deploy AWS + v1 marcada como histórica + README atualizado).
 - [ ] PostgreSQL com **replicação** (item 10 🟡 — setup pronto: primário no `deploy1.sh`, réplica no `deploy2.sh`; falta executar na AWS) e **particionamento** (item 11 🟡 — `scores` particionada por minigame, validada offline; E2E roteirizado no Guia §5.5).
 
 ### 8.2 Conformidade com a especificação do trabalho
 
-> Espelha o [Checklist de Requisitos da Especificação](../Requisitos%20do%20trabalho/Checklist%20de%20Requisitos%20da%20Especificação.md). Os itens técnicos acima já cobrem as características obrigatórias (1.x), os paradigmas async/pub-sub (2.3, 2.4) e a 3ª linguagem (Python no Score). Faltam, além deles, os **entregáveis de demonstração**:
+> Espelha o [Checklist de Requisitos da Especificação](../../README.md). Os itens técnicos acima já cobrem as características obrigatórias (1.x), os paradigmas async/pub-sub (2.3, 2.4) e a 3ª linguagem (Python no Score). Faltam, além deles, os **entregáveis de demonstração**:
 
 - [ ] **Serviço acessível na Internet** via deploy público na AWS (req. 1.1 → item 3).
 - [x] **Interação síncrona (gRPC)** + **assíncrona/messaging (Kafka)** demonstráveis (reqs. 1.5, 2.3, 2.4 → itens 8, 4, 5) — messaging/pub-sub via Kafka **validado E2E** (itens 4, 5 ✅) e **gRPC implementado/validado** (item 8 ✅; E2E ao vivo no Guia §5.4).

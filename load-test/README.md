@@ -14,7 +14,8 @@ falha / particionamento funcional** (1.6) derrubando um engine.
 
 A stack precisa estar no ar (Auth + Gateway + 3 Engines). **Atalho (sem Docker):**
 na raiz do projeto, `./dev-stack.sh start` sobe tudo e `./dev-stack.sh stop`
-derruba. Para subir na mão, ver o resumo abaixo (ou `run.md` na raiz do projeto):
+derruba. Para subir na mão, ver o resumo abaixo (ou a seção **5 — Testar
+localmente** do [README na raiz](../README.md)):
 
 ```bash
 # Auth (lite) :5000

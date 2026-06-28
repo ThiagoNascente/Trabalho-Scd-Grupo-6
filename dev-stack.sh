@@ -20,7 +20,7 @@ SECRET="${JWT_SECRET:-dev-spaceship-secret-troque-em-prod-32chars}"
 AUTH_URL="http://localhost:5000/api/auth"
 LOG_DIR="${TMPDIR:-/tmp}/spaceship-dev"
 TCP_PORTS="5000 4001 4002 4003 3000"
-ALL_PORTS="$TCP_PORTS 5001 5002 5003"
+ALL_PORTS="$TCP_PORTS"
 
 up_count() { ss -ltn 2>/dev/null | grep -Ec ':(5000|4001|4002|4003|3000)\b' || true; }
 

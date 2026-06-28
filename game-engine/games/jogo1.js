@@ -1,16 +1,12 @@
 // ==========================================================================
 // JOGO 1 — Duelo (PvP 1v1). Lógica e estado isolados em um módulo próprio.
 // Identidade do jogador: usa socket.data.playerId (id do cliente no gateway,
-// repassado na sinalização) quando presente; senão, o socket.id local. Assim o
+// repassado no handshake) quando presente; senão, o socket.id local. Assim o
 // estado do jogo casa com o socket.id que o cliente conhece.
 //
-// Transporte (item 2 — WebRTC):
-//  - INPUTS (movimento/tiro) e ESTADO por tick (gameUpdate) são o "hot path":
-//    chegam/saem pelo DataChannel quando disponível (deps.emitState decide por
-//    jogador) e por Socket.io como fallback. As funções apply* aplicam o input
-//    independentemente do transporte (chamadas pelo Socket.io e pelo WebRTC).
-//  - Eventos de CONTROLE (roomJoined, countdown, matchOver, roomList) seguem
-//    sempre por Socket.io (confiável).
+// Transporte: tudo por Socket.io via gateway-relay. Os INPUTS (movimento/tiro),
+// o ESTADO por tick (gameUpdate) e os eventos de CONTROLE (roomJoined,
+// countdown, matchOver, roomList) trafegam pelo mesmo canal.
 // ==========================================================================
 const {
   TICK_RATE, SHIP_SPEED, PROJECTILE_SPEED, SHOOT_COOLDOWN, PROJECTILE_RADIUS, PLAYER_COLORS,
@@ -25,8 +21,7 @@ module.exports = function createJogo1(io, deps) {
   const { playerStats, AUTH_API_URL } = deps;
   // Publica o fim de partida no Kafka (item 4). No-op tolerante se indisponível.
   const publishMatch = deps.publishMatchCompleted || (async () => false);
-  // emitState envia o estado por tick pelo melhor transporte de cada jogador
-  // (DataChannel se aberto, senão Socket.io). Default: tudo via Socket.io.
+  // emitState envia o estado por tick a cada jogador da sala (io.to(playerId)).
   const emitState = deps.emitState || ((ids, event, payload) => ids.forEach(id => io.to(id).emit(event, payload)));
 
   const rooms = {};
@@ -112,7 +107,7 @@ module.exports = function createJogo1(io, deps) {
     }
   }
 
-  // --- Aplicação de inputs (chamada pelo Socket.io e pelo WebRTC) ---
+  // --- Aplicação de inputs ---
   function applyMovement(pid, data) {
     const room = getRoomByPlayer(pid);
     if (room && room.players[pid]) room.players[pid].dir = (data && data.dir) || 'stop';
@@ -150,7 +145,6 @@ module.exports = function createJogo1(io, deps) {
             socket.join(roomId); io.to(roomId).emit('roomJoined', room); io.emit('roomList', getOpenRooms()); startCountdown(room);
         }
     });
-    // Hot path por Socket.io (fallback); o WebRTC chama as mesmas funções apply*.
     socket.on('playerMovement', (data) => applyMovement(pid, data));
     socket.on('shoot', () => applyShoot(pid));
     socket.on('leaveRoom', () => { handlePlayerLeave(pid); });
@@ -158,8 +152,6 @@ module.exports = function createJogo1(io, deps) {
 
   return {
     register,
-    applyMovement,
-    applyShoot,
     sendRoomList: (socket) => socket.emit('roomList', getOpenRooms()),
     handleDisconnect: (playerId) => handlePlayerLeave(playerId),
   };

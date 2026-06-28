@@ -42,8 +42,6 @@ require_env() {
 : "${GATEWAY_PORT:=3000}"
 : "${FRONTEND_PORT:=80}"
 : "${MATCH_TOPIC:=match-completed}"
-: "${GECKOS_UDP_MIN:=20001}"
-: "${GECKOS_UDP_MAX:=20030}"
 
 # Endereços COMPOSTOS derivados dos hosts privados (backend↔backend).
 REDIS_URL_DERIVED="redis://${REDIS_HOST_PRIVATE:-localhost}:${REDIS_PORT}/0"

@@ -4,7 +4,7 @@
 // proxy a cada Game Engine e repassa os inputs do cliente para o engine dono
 // do jogo e o estado do engine de volta para o cliente.
 //
-// Esta etapa ainda usa Socket.io entre cliente e gateway (pré-WebRTC, item 2).
+// Tudo trafega por Socket.io: cliente ↔ gateway e gateway ↔ engines (relay).
 // Endereços dos engines vêm de variável de ambiente (ENGINE1/2/3_URL).
 //
 // Validação de sessão (item 8): na conexão, o gateway valida o JWT via gRPC
@@ -52,7 +52,7 @@ io.use(async (socket, next) => {
   const result = await validateToken(token);
   if (!result.valid) return next(new Error("Authentication error: " + (result.reason || "Invalid token")));
   socket.user = { sub: result.username };
-  socket.token = token; // repassado aos engines na sinalização
+  socket.token = token; // repassado aos engines no handshake do relay
   next();
 });
 

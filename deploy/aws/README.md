@@ -7,7 +7,8 @@ o serviço no **systemd** — sobe no boot e reinicia se cair) e usa a configura
 `env.aws`.
 
 > O **passo a passo completo** (abrir as EC2, Security Groups, ordem de subida e
-> como testar) está em **[../../Docs/v2/Guia de Deploy AWS.md](../../Docs/v2/Guia%20de%20Deploy%20AWS.md)**.
+> como testar) está na seção **6 — "Testar na AWS"** do
+> **[README na raiz do projeto](../../README.md)**.
 > O Docker (`docker-compose.yml`) é **só para teste local** — não use na AWS.
 
 ## Estrutura
@@ -41,9 +42,9 @@ sudo bash deploy/aws/deploy6.sh   # na spaceship-engine3
 | `deploy1.sh` | `spaceship-data1` | PostgreSQL **primário** + Redis | 5432 · 6379 |
 | `deploy2.sh` | `spaceship-data2` | Kafka + PostgreSQL **réplica** (item 10) | 9092 (+9093) · 5432 |
 | `deploy3.sh` | `spaceship-app` | Auth (REST+gRPC) + Gateway + Score + Frontend | 5000+5005 · 3000 · 8000 · 80 |
-| `deploy4.sh` | `spaceship-engine1` | Game Engine `jogo1` | 4001 + 5001 + UDP 20001-20030 |
-| `deploy5.sh` | `spaceship-engine2` | Game Engine `jogo2` | 4002 + 5002 + UDP 20001-20030 |
-| `deploy6.sh` | `spaceship-engine3` | Game Engine `jogo3` | 4003 + 5003 + UDP 20001-20030 |
+| `deploy4.sh` | `spaceship-engine1` | Game Engine `jogo1` | 4001 (interno) |
+| `deploy5.sh` | `spaceship-engine2` | Game Engine `jogo2` | 4002 (interno) |
+| `deploy6.sh` | `spaceship-engine3` | Game Engine `jogo3` | 4003 (interno) |
 
 **Por que 6 (e não 10):** a conta AWS limita a 9 instâncias simultâneas. Condensamos
 serviços que não competem por porta, **mantendo separados** o que mais importa em

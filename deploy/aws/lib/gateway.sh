@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==========================================================================
-# gateway.sh — Game Gateway (Node) NATIVO. Lobby/sinalização + roteamento.
+# gateway.sh — Game Gateway (Node) NATIVO. Lobby + roteamento (relay).
 # Valida a sessão via gRPC SÍNCRONO no Auth (item 8). Alvo: Ubuntu 22.04/24.04.
 #   sudo bash gateway.sh
 # ==========================================================================

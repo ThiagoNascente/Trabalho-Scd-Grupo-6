@@ -8,7 +8,7 @@ A solução adota uma Arquitetura Baseada em Microsserviços e Orientada a Event
 
 **Responsabilidade**: Apresentar a interface de login/registro, o menu de seleção dos 3 tipos de jogos e renderizar a partida em tempo real.
 
-**Mecanismo de Concorrência**: Event-driven no navegador (manipulação assíncrona de eventos de teclado e de rede). O fluxo de jogo em tempo real usa **WebRTC DataChannels** (transporte UDP de baixa latência), enquanto a sinalização inicial da sessão e o lobby usam WebSocket/HTTP.
+**Mecanismo de Concorrência**: Event-driven no navegador (manipulação assíncrona de eventos de teclado e de rede). O fluxo de jogo em tempo real usa **WebSocket (Socket.io)**: o cliente envia os inputs e recebe o estado do servidor pelo mesmo canal full-duplex, sempre através do **gateway-relay** (o cliente não fala direto com os engines). REST/HTTP é usado para login e leaderboard.
 
 ### Serviço de Autenticação e Usuários (Auth Service)
 
@@ -20,9 +20,9 @@ A solução adota uma Arquitetura Baseada em Microsserviços e Orientada a Event
 
 ### Gateway de Conexão e Sala de Espera (Game Gateway & Lobby)
 
-**Tecnologias**: Node.js, Socket.io (lobby) e **servidor de sinalização WebRTC**.
+**Tecnologias**: Node.js, Socket.io (lobby + relay do jogo em tempo real).
 
-**Responsabilidade**: Atuar como o ponto de entrada para o lobby e o matchmaking (salas de espera) e realizar a validação do token JWT. Ele não processa a física do jogo: faz a **sinalização** que estabelece a conexão WebRTC entre o cliente e o **Game Engine** responsável pela sala. Após a negociação, o tráfego de jogo em tempo real trafega **diretamente** entre cliente e engine via WebRTC DataChannel, sem passar pelo gateway.
+**Responsabilidade**: Atuar como o ponto de entrada para o lobby e o matchmaking (salas de espera) e realizar a validação do token JWT. Ele não processa a física do jogo: para cada cliente, abre uma **conexão-relay** a cada **Game Engine** e **repassa** os inputs do cliente ao engine dono da sala e o estado do engine de volta ao cliente. O cliente fala **só com o gateway**; os engines ficam na rede interna.
 
 **Mecanismo de Concorrência**: Modelo de I/O Não-Bloqueante baseado em Single-Threaded Event Loop, ideal para lidar com milhares de conexões WebSockets simultâneas sem sobrecarga de memória por thread.
 
@@ -52,15 +52,15 @@ A solução adota uma Arquitetura Baseada em Microsserviços e Orientada a Event
 
 O sistema demonstra a convivência de três paradigmas distintos de comunicação distribuída:
 
-**Cliente-Servidor** Clássico (REST) e **Tempo Real (WebRTC)**: Utilizado na comunicação do navegador com o ecossistema. REST (HTTP) é empregado para ações síncronas de ciclo curto (Login, Registro, Consulta ao Leaderboard) e WebSocket é usado para o lobby e a **sinalização**. O fluxo contínuo de dados do jogo em execução trafega por **WebRTC DataChannels** (UDP), estabelecidos diretamente entre o cliente e o Game Engine da sala para minimizar a latência/input lag.
+**Cliente-Servidor** Clássico (REST) e **Tempo Real (WebSocket)**: Utilizado na comunicação do navegador com o ecossistema. REST (HTTP) é empregado para ações síncronas de ciclo curto (Login, Registro, Consulta ao Leaderboard) e **WebSocket (Socket.io)** é usado para o lobby e o **fluxo contínuo do jogo em execução** (inputs do cliente e estado por tick), que trafega pelo **gateway-relay** até o Game Engine da sala.
 
 **Chamada de Procedimento Remoto** (gRPC síncrono): Quando um cliente tenta se conectar ao Game Gateway via WebSocket, o Gateway precisa validar se aquele token JWT ainda é válido e ativo. Para isso, o Node.js realiza uma chamada RPC síncrona (bloqueante para aquela conexão específica) diretamente para o Auth Service em ASP.NET Core, garantindo uma validação centralizada e de alto desempenho.
 
-**Mensageria / Publish-Subscribe** (Apache Kafka assíncrono): Quando uma partida de naves termina no Game Engine (Node.js), ele publica um evento no tópico match-events do Kafka contendo o ID dos jogadores e o resultado da partida. O Game Engine se desvincula imediatamente dessa informação e continua livre para processar o próximo jogo. O Score Service (Python), que está inscrito (subscrito) nesse tópico, consome a mensagem no seu próprio ritmo, processa os novos rankings e persiste as alterações.
+**Mensageria / Publish-Subscribe** (Apache Kafka assíncrono): Quando uma partida de naves termina no Game Engine (Node.js), ele publica um evento no tópico `match-completed` do Kafka contendo os jogadores e o resultado da partida. O Game Engine se desvincula imediatamente dessa informação e continua livre para processar o próximo jogo. O Score Service (Python), que está inscrito (subscrito) nesse tópico, consome a mensagem no seu próprio ritmo, processa os novos rankings e persiste as alterações.
 
 ## Justificativa Arquitetural Frente aos Requisitos
 
-**Serviço acessível a múltiplos clientes na Internet**: A infraestrutura na AWS adota **uma instância EC2 dedicada por serviço** (Auth, Gateway, cada Game Engine, Score, PostgreSQL, Redis e Kafka), **sem orquestrador de contêineres** (não se utiliza Kubernetes). Um **Load Balancer** atua como porta de entrada para o tráfego HTTP/REST e para a sinalização, distribuindo a carga entre as instâncias e permitindo acesso público escalável. O tráfego de jogo em tempo real (WebRTC/UDP) conecta o cliente **diretamente** à EC2 do Game Engine atribuído à sala, o que distribui naturalmente a carga das partidas entre as instâncias de motor.
+**Serviço acessível a múltiplos clientes na Internet**: A infraestrutura na AWS adota serviços **nativos em EC2** (o ideal de 1 serviço por EC2 foi condensado em **6 máquinas** pelo limite da conta, mantendo isolados o PostgreSQL **primário × réplica** e os **3 engines**), **sem orquestrador de contêineres** (não se utiliza Kubernetes) e **sem Application Load Balancer**. A EC2 `spaceship-app` é a **porta de entrada pública** (Auth REST, Gateway WebSocket e Score REST); os **Game Engines ficam na rede interna**, acessados pelo gateway. O **balanceamento das partidas** é feito pelo **matchmaking do gateway**, que roteia cada jogo para o seu engine — distribuindo naturalmente a carga das partidas entre as instâncias de motor.
 
 **Uso de mais de uma linguagem de programação**: O ecossistema integra C# (segurança e confiabilidade no Auth), JavaScript/TypeScript (alta performance de I/O orientado a eventos no Gateway e reuso de código nos Motores de Jogo) e Python (flexibilidade e manipulação de dados no serviço de pontuação).
 

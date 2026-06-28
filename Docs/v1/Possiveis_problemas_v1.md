@@ -1,4 +1,4 @@
-> ⚠️ **DOCUMENTO HISTÓRICO (v1) — SUPERADO PELA v2.** Lista de problemas/requisitos do ciclo v1, mantida como **registro**. Algumas premissas mudaram na v2 (ex.: **sem Kubernetes/containers na nuvem** e **sem criptografia de tráfego** — decisões firmadas no [Plano v2](../v2/Plano%20de%20correções%20pendentes%20para%20v2.md)). O estado atual está no [Rastreio de Evolução](../v2/Rastreio%20de%20Evolução.md) e o deploy no [Guia de Deploy AWS](../v2/Guia%20de%20Deploy%20AWS.md).
+> ⚠️ **DOCUMENTO HISTÓRICO (v1) — SUPERADO PELA v2.** Lista de problemas/requisitos do ciclo v1, mantida como **registro**. Algumas premissas mudaram na v2 (ex.: **sem Kubernetes/containers na nuvem** e **sem criptografia de tráfego** — decisões firmadas no [Plano v2](../v2/Plano%20de%20correções%20pendentes%20para%20v2.md)). O estado atual está no [Rastreio de Evolução](../v2/Rastreio%20de%20Evolução.md) e o deploy no [README na raiz](../../README.md).
 
 ## Precaver 
 

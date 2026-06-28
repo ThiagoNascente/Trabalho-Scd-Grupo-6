@@ -100,17 +100,12 @@ services:
     environment:
       - GAME=jogo1
       - PORT=4001
-      - GECKOS_PORT=5001
-      - GECKOS_UDP_MIN=20001
-      - GECKOS_UDP_MAX=20010
       - JWT_SECRET=${JWT_SECRET:?defina JWT_SECRET no .env (copie de .env.example)}
       - AUTH_API_URL=http://auth-service:5000/api/auth
       - KAFKA_BROKER=kafka:29092               # publica match-completed (item 4)
       - MATCH_TOPIC=match-completed
     ports:
       - "${ENGINE1_PORT:-4001}:4001"          # Socket.io (relay do gateway)
-      - "5001:5001"                            # WebRTC: sinalização (geckos)
-      - "20001-20010:20001-20010/udp"          # WebRTC: faixa UDP/ICE (DataChannel)
     depends_on:
       - auth-service
       - kafka
@@ -124,16 +119,11 @@ services:
     environment:
       - GAME=jogo2
       - PORT=4002
-      - GECKOS_PORT=5002
-      - GECKOS_UDP_MIN=20011
-      - GECKOS_UDP_MAX=20020
       - JWT_SECRET=${JWT_SECRET:?defina JWT_SECRET no .env (copie de .env.example)}
       - KAFKA_BROKER=kafka:29092               # publica match-completed (item 4)
       - MATCH_TOPIC=match-completed
     ports:
       - "${ENGINE2_PORT:-4002}:4002"
-      - "5002:5002"
-      - "20011-20020:20011-20020/udp"
     depends_on:
       - kafka
     restart: unless-stopped
@@ -146,16 +136,11 @@ services:
     environment:
       - GAME=jogo3
       - PORT=4003
-      - GECKOS_PORT=5003
-      - GECKOS_UDP_MIN=20021
-      - GECKOS_UDP_MAX=20030
       - JWT_SECRET=${JWT_SECRET:?defina JWT_SECRET no .env (copie de .env.example)}
       - KAFKA_BROKER=kafka:29092               # publica match-completed (item 4)
       - MATCH_TOPIC=match-completed
     ports:
       - "${ENGINE3_PORT:-4003}:4003"
-      - "5003:5003"
-      - "20021-20030:20021-20030/udp"
     depends_on:
       - kafka
     restart: unless-stopped

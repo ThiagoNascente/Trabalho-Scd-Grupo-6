@@ -1,8 +1,8 @@
 // ==========================================================================
 // JOGO 2 — Chuva de Asteroides (Survival, 1 a 4 jogadores).
-// Identidade do jogador por playerId (id do cliente no gateway). Hot path
-// (input 'acao' e estado 'estadoDoJogo') trafega por WebRTC quando disponível
-// (deps.emitState) e por Socket.io como fallback. Demais eventos: Socket.io.
+// Identidade do jogador por playerId (id do cliente no gateway). Tudo trafega
+// por Socket.io via gateway-relay: input 'acao', estado 'estadoDoJogo' e os
+// demais eventos da sala.
 // ==========================================================================
 const {
   TICK_RATE, SHIP_SPEED, PROJECTILE_SPEED, SHOOT_COOLDOWN, PROJECTILE_RADIUS, PLAYER_COLORS,
@@ -89,7 +89,7 @@ module.exports = function createJogo2(io, deps) {
       }, TICK_RATE);
   }
 
-  // --- Aplicação de input (Socket.io e WebRTC) ---
+  // --- Aplicação de input ---
   function applyAcao(pid, acao) {
       const sala = j2_getSalaByPlayer(pid); if (!sala || !sala.emAndamento) return;
       const jogador = sala.jogadores[pid]; if (!jogador) return;
@@ -125,7 +125,6 @@ module.exports = function createJogo2(io, deps) {
 
   return {
     register,
-    applyAcao,
     sendRoomList: () => j2_enviarListaSalas(),
     handleDisconnect: (socket) => j2_lidarComSaida(socket, (socket.data && socket.data.playerId) || socket.id),
   };

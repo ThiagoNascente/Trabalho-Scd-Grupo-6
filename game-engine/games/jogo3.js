@@ -1,8 +1,8 @@
 // ==========================================================================
 // JOGO 3 — Invasão Alienígena (Cooperativo + boss, 1 a 4 jogadores).
-// Identidade do jogador por playerId (id do cliente no gateway). Hot path
-// (inputs j3_move/j3_shoot e estado j3_gameState) trafega por WebRTC quando
-// disponível (deps.emitState) e por Socket.io como fallback. Demais: Socket.io.
+// Identidade do jogador por playerId (id do cliente no gateway). Tudo trafega
+// por Socket.io via gateway-relay: inputs j3_move/j3_shoot, estado j3_gameState
+// e os demais eventos da sala.
 // Tipos de inimigo (nome interno => GDD): 'batalha' = Caçador, 'tanque' = Destruidor, 'mae' = Leviatã (chefe).
 // ==========================================================================
 const {
@@ -195,7 +195,7 @@ module.exports = function createJogo3(io, deps) {
       }
   }
 
-  // --- Aplicação de inputs (Socket.io e WebRTC) ---
+  // --- Aplicação de inputs ---
   function applyMove(pid, direction) {
       const roomName = j3_getRoomByPlayer(pid);
       if (roomName && salasJogo3[roomName].players[pid]) {
@@ -245,8 +245,6 @@ module.exports = function createJogo3(io, deps) {
 
   return {
     register,
-    applyMove,
-    applyShoot,
     sendRoomList: () => j3_enviarListaSalas(),
     handleDisconnect: (socket) => j3_handleDisconnect(socket, (socket.data && socket.data.playerId) || socket.id),
   };
