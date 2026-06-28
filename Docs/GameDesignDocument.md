@@ -147,16 +147,18 @@ Desenvolver um jogo multiplayer web simples e funcional que sirva como demonstra
 
 **Jogadores:** exatamente 2.
 
-**Objetivo:** Eliminar o adversário antes de ser eliminado. O primeiro a vencer **3 rounds consecutivos** é declarado campeão da sessão.
+**Objetivo:** Eliminar o adversário antes de ser eliminado. Vence a sessão quem abrir **2 pontos de vantagem** no placar.
 
 **Dinâmica:**
 - As duas naves aparecem em posições opostas na tela.
 - Ambos os jogadores atiram e se esquivam simultaneamente.
-- Ao ser atingido, o round termina. O sobrevivente recebe um ponto de vitória.
-- O contador de vitórias consecutivas é reiniciado se o mesmo jogador perder um round.
-- A partida termina quando um jogador acumula 3 vitórias consecutivas.
+- Ao ser atingido, o round termina. O sobrevivente ganha **1 ponto**.
+- O placar é **acumulativo**: o ponto soma ao vencedor do round e o adversário **mantém** os pontos que já tinha (não há reset).
+- A partida termina assim que um jogador fica **2 pontos à frente** do outro (menor partida possível: 2 × 0).
 
-**Condição de Vitória:** 3 vitórias consecutivas.
+**Condição de Vitória:** abrir 2 pontos de vantagem no placar (vitória por diferença de 2).
+
+> _Revisão pós-playtest (AWS, 2026-06-27): a regra anterior era "3 vitórias consecutivas" (com reset da sequência ao perder um round). A pedido da equipe, passou para **placar acumulativo com vitória por 2 de vantagem**. Implementação: `WIN_MARGIN` em `game-engine/games/jogo1.js`._
 
 ---
 

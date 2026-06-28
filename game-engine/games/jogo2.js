@@ -76,6 +76,12 @@ module.exports = function createJogo2(io, deps) {
                   game: 'jogo2', finishedAt: new Date().toISOString(),
                   players: Object.values(sala.jogadores).map(j => ({ username: j.nome, score: sala.pontos, won: false })),
               });
+              // Encerra a sala: tira todos do canal (socketsLeave) e libera o nome.
+              // Sem isso, um jogador seguia preso ao canal da sala já finalizada — se
+              // alguém recriasse uma sala com o MESMO nome (o nome é digitado), esse
+              // jogador era puxado para a tela de combate junto (jogador "fantasma").
+              // Espelha o encerramento do Jogo 1/3.
+              io.in(idSala).socketsLeave(idSala);
               delete salasJogo2[idSala];
           } else {
               emitState(Object.keys(sala.jogadores), 'estadoDoJogo', { jogadores: Object.values(sala.jogadores), projeteis: sala.projeteis, asteroides: sala.asteroides, pontos: sala.pontos });

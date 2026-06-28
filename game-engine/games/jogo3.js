@@ -54,6 +54,22 @@ module.exports = function createJogo3(io, deps) {
       }
   }
 
+  // Encerra a partida: avisa o resultado, publica no Kafka e LIBERA a sala —
+  // remove todos do canal (socketsLeave) e apaga a sala do mapa. Sem isso a sala
+  // ficava "viva" com os jogadores presos: ao reiniciá-la, um jogador que já tinha
+  // voltado ao menu reaparecia no jogo do outro (bug relatado). Espelha o Jogo 1/2.
+  function j3_finishMatch(roomName, won) {
+      const room = salasJogo3[roomName];
+      if (!room) return;
+      if (room.intervalId) clearInterval(room.intervalId);
+      room.isGameRunning = false;
+      io.to(roomName).emit('j3_gameOver', { won, score: room.score });
+      j3_publishResult(room, won);
+      io.in(roomName).socketsLeave(roomName);
+      delete salasJogo3[roomName];
+      j3_enviarListaSalas();
+  }
+
   function j3_updateGameLogic(roomName) {
       const room = salasJogo3[roomName];
       if (!room || !room.isGameRunning) return;
@@ -120,6 +136,9 @@ module.exports = function createJogo3(io, deps) {
       }
 
       j3_checkCollisions(room, roomName);
+      // A partida pode ter terminado dentro do checkCollisions (sala liberada);
+      // nesse caso não há mais estado a transmitir.
+      if (!salasJogo3[roomName]) return;
 
       emitState(Object.keys(room.players), 'j3_gameState', { players: room.players, enemies: room.enemies, playerBullets: room.playerBullets, enemyBullets: room.enemyBullets, score: room.score, phase: room.waveManager.phase });
   }
@@ -136,12 +155,11 @@ module.exports = function createJogo3(io, deps) {
                       // Pontuação ativa por destruição de inimigos
                       if (enemy.type === 'mae') {
                           room.score += 500;
-                          io.to(roomName).emit('j3_gameOver', { won: true, score: room.score });
-                          j3_publishResult(room, true);
-                          clearInterval(room.intervalId); room.isGameRunning = false;
-                      } else {
-                          room.score += (enemy.type === 'tanque' ? 50 : 10);
+                          room.enemies.splice(j, 1);
+                          j3_finishMatch(roomName, true); // vitória: encerra e libera a sala
+                          return;
                       }
+                      room.score += (enemy.type === 'tanque' ? 50 : 10);
                       room.enemies.splice(j, 1);
                   }
                   break;
@@ -159,9 +177,7 @@ module.exports = function createJogo3(io, deps) {
       }
       const allPlayersDead = Object.values(room.players).every(p => p.isAlive === false);
       if (allPlayersDead && Object.keys(room.players).length > 0) {
-          io.to(roomName).emit('j3_gameOver', { won: false, score: room.score });
-          j3_publishResult(room, false);
-          clearInterval(room.intervalId); room.isGameRunning = false;
+          j3_finishMatch(roomName, false); // derrota: encerra e libera a sala
       }
   }
 

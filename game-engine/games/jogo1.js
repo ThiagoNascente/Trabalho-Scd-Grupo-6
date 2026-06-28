@@ -16,9 +16,10 @@ const {
   TICK_RATE, SHIP_SPEED, PROJECTILE_SPEED, SHOOT_COOLDOWN, PROJECTILE_RADIUS, PLAYER_COLORS,
 } = require('../shared/constants');
 
-// Regra de vitória do Jogo 1 (GDD — Minigame 1 "Duelo"): primeiro a vencer
-// ROUNDS_TO_WIN rounds CONSECUTIVOS. Perder um round zera a sequência do adversário.
-const ROUNDS_TO_WIN = 3;
+// Regra de vitória do Jogo 1 (Duelo): placar ACUMULATIVO — cada round vencido soma
+// 1 ponto ao vencedor (o adversário NÃO é zerado). Vence quem abrir WIN_MARGIN
+// pontos de vantagem (menor partida possível: 2 x 0).
+const WIN_MARGIN = 2;
 
 module.exports = function createJogo1(io, deps) {
   const { playerStats, AUTH_API_URL } = deps;
@@ -80,12 +81,14 @@ module.exports = function createJogo1(io, deps) {
   }
   function handleHit(room, shooterId) {
     clearInterval(room.interval);
-    // Vitórias CONSECUTIVAS: quem vence o round soma 1 e zera a sequência do adversário.
-    if (shooterId === room.hostId) { room.p1Score++; room.p2Score = 0; }
-    else { room.p2Score++; room.p1Score = 0; }
-    if (room.p1Score >= ROUNDS_TO_WIN || room.p2Score >= ROUNDS_TO_WIN) {
-        const winnerId = room.p1Score >= ROUNDS_TO_WIN ? room.hostId : room.guestId;
+    // Placar ACUMULATIVO: quem vence o round soma 1 ponto; o adversário mantém o seu.
+    if (shooterId === room.hostId) { room.p1Score++; }
+    else { room.p2Score++; }
+    if (Math.abs(room.p1Score - room.p2Score) >= WIN_MARGIN) {
+        const winnerId = room.p1Score > room.p2Score ? room.hostId : room.guestId;
         const loserId = winnerId === room.hostId ? room.guestId : room.hostId;
+        const winnerScore = Math.max(room.p1Score, room.p2Score);
+        const loserScore = Math.min(room.p1Score, room.p2Score);
         if (playerStats[winnerId]) {
             playerStats[winnerId].wins++;
             fetch(`${AUTH_API_URL}/wins/${playerStats[winnerId].username}/increment`, { method: 'POST' }).catch(err => console.error("Erro ao incrementar wins", err));
@@ -93,12 +96,13 @@ module.exports = function createJogo1(io, deps) {
         }
         const winnerName = playerStats[winnerId] ? playerStats[winnerId].username : 'Comandante';
         const loserName = playerStats[loserId] ? playerStats[loserId].username : 'Comandante';
-        // Evento de fim de partida (Kafka): no Jogo 1 o ranking conta VITÓRIAS.
+        // Evento de fim de partida (Kafka): no Jogo 1 o ranking conta VITÓRIAS
+        // (o Score Service só olha `won`); `score` guarda o placar final no histórico.
         publishMatch({
             game: 'jogo1', finishedAt: new Date().toISOString(),
             players: [
-                { username: winnerName, score: ROUNDS_TO_WIN, won: true },
-                { username: loserName, score: 0, won: false },
+                { username: winnerName, score: winnerScore, won: true },
+                { username: loserName, score: loserScore, won: false },
             ],
         });
         io.to(room.id).emit('matchOver', { reason: `${winnerName} Venceu a Partida!`, winnerId: winnerId });

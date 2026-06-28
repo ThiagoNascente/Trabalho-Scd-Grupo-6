@@ -42,7 +42,7 @@ O ciclo v1 fechou **todos os bugs de UI/UX e de consistência de gameplay** apon
 | 8 | ✅ gRPC síncrono — `ValidateToken` no Auth C# (assinatura + existência do usuário/revogação) + cliente no gateway com fallback local; `dotnet build` OK + cliente validado em 5 cenários | Arquitetura | 🟠 | ◑ |
 | 9.1 | ✅ Validação de usuário/senha (4–30) no servidor C# | Possiveis_problemas | 🟠 | ◐ |
 | 9.2 | ✅ Auth canônico decidido — C# é o oficial (compila aqui); `auth-service-lite` alinhado (bcrypt, `/login → {token}`, TTL 2h, validação 4–30) | Revisão v2 | 🟠 | ◐ |
-| 9.3 | ✅ Regra de vitória do Jogo 1 diverge do GDD | Revisão v1 (E2) | 🟡 | ◐ |
+| 9.3 | ✅ Regra de vitória do Jogo 1 alinhada ao GDD (revisada pós-playtest: placar acumulativo, vence por 2 de vantagem) | Revisão v1 (E2) | 🟡 | ◐ |
 | 9.4 | ✅ Remover manifestos k8s (fora de escopo agora) | Decisão v2 | 🟡 | ◐ |
 | 9.5 | ✅ Código morto: inimigo `formacao` | Revisão v1 (E3) | 🟡 | ◐ |
 | 9.6 | ✅ Segredos/credenciais por variável de ambiente (deploy AWS) | Deploy | 🟠 | ◐ |
@@ -217,7 +217,8 @@ Verificação (atualizada após os itens 1/4/5): a **física saiu do gateway** e
 - **Situação:** o código encerrava com `p1Score >= 2 || p2Score >= 2` (primeiro a 2) — no gateway monolítico (antes do item 1). O GDD descreve **"3 vitórias consecutivas"** e o código **não** zerava a sequência ao perder um round.
 - **Entregar:** alinhar código e GDD (escolher a regra e implementá-la, incluindo reset de sequência se for "consecutivas").
 - **Aceite:** condição de vitória idêntica entre jogo e documento.
-- **✔ Concluído (v2):** implementadas **3 vitórias consecutivas** com reset da sequência do adversário (`ROUNDS_TO_WIN = 3`) em [game-engine/games/jogo1.js](../../game-engine/games/jogo1.js) (constante na linha 21; reset na função `handleHit`, linha 81), alinhado ao GDD (Minigame 1 — Duelo).
+- **✔ Concluído (v2):** implementadas **3 vitórias consecutivas** com reset da sequência do adversário (`ROUNDS_TO_WIN = 3`) em [game-engine/games/jogo1.js](../../game-engine/games/jogo1.js), alinhado ao GDD (Minigame 1 — Duelo).
+- **🔁 Revisão pós-playtest (AWS, 2026-06-27):** a pedido da equipe, a regra mudou para **placar acumulativo com vitória por 2 de vantagem** — cada round soma 1 ponto e o adversário **não** é zerado; vence quem abrir 2 de diferença (menor partida 2×0). Implementação: `WIN_MARGIN = 2` em [game-engine/games/jogo1.js:22](../../game-engine/games/jogo1.js) + condição `Math.abs(p1Score - p2Score) >= WIN_MARGIN` em `handleHit` (linha 87). O **GDD (Minigame 1) foi atualizado para casar**, então o aceite ("condição idêntica entre jogo e documento") **continua cumprido**. O ranking de vitórias do Jogo 1 não muda (o Score Service conta `won`, não o placar).
 
 ### 5.4 🟡 Remover manifestos k8s (9.4)
 
