@@ -95,6 +95,74 @@ Para cada característica obrigatória, **apontar o mecanismo concreto:**
 clientes — e o **particionamento funcional** garante que derrubar o engine de um
 jogo **não afeta** os outros (demo no tópico D).
 
+**Recortes da implementação (a prova no código).** Cada linha da tabela tem um
+trecho real por trás. Abrir o arquivo e apontar o que importa (1 frase cada):
+
+*RPC síncrono (gRPC) — o gateway BLOQUEIA esperando o Auth e honra a revogação:*
+```js
+// game-gateway/authClient.js — chamada bloqueante (com deadline)
+const deadline = new Date(Date.now() + GRPC_TIMEOUT_MS);
+c.ValidateToken({ token }, { deadline }, (err, reply) => {
+  if (err) return resolve(localVerify(token));   // Auth fora do ar -> fallback local
+  resolve({ valid: !!reply.valid, username: reply.username });
+});
+```
+```csharp
+// auth-service/Services/AuthValidationService.cs — revogação REAL no servidor
+var exists = await _context.Users.AnyAsync(u => u.Username == username);
+if (!exists) return new ValidateTokenReply { Valid = false, Reason = "user not found" };
+```
+
+*Pub/Sub assíncrono (Kafka) — o engine publica e "esquece"; o Score consome no seu ritmo:*
+```js
+// game-engine/games/jogo1.js — fim de partida (o engine NÃO conhece o Score)
+publishMatch({ game: 'jogo1', finishedAt: new Date().toISOString(),
+  players: [ { username: winnerName, score: winnerScore, won: true },
+             { username: loserName,  score: loserScore,  won: false } ] });
+```
+```python
+# score-service/consumer.py — commit manual SÓ DEPOIS de persistir (at-least-once)
+store.record_match(msg.value)        # grava em Redis + PostgreSQL
+if processed: consumer.commit()      # nada é "consumido" antes de ser gravado
+```
+
+*Cliente-servidor — REST (ciclo curto) + WebSocket/relay (tempo real):*
+```python
+# score-service/app.py — ranking que o frontend lê (REST)
+@app.get("/api/scores")
+def scores():                        # GET /api/scores?game=jogoN
+    return jsonify(game=game, leaderboard=store.leaderboard(game, limit))
+```
+```js
+// game-gateway/index.js — relay: roteia cada input para o engine DONO do jogo
+clientSocket.onAny((event, ...args) => {
+  const game = EVENT_TO_GAME[event];
+  if (game && proxies[game]) proxies[game].emit(event, ...args);
+});
+```
+
+*Concorrência no servidor — loop autoritativo a 60 Hz, UM por sala:*
+```js
+// game-engine/games/jogo1.js  (+ shared/constants.js: TICK_RATE = 1000/60)
+room.interval = setInterval(() => {
+  /* movimento autoritativo, colisões, projéteis... */
+  emitState(Object.keys(room.players), 'gameUpdate', room);
+}, TICK_RATE);   // um setInterval POR SALA -> N partidas concorrentes no event loop
+```
+
+*Particionamento e replicação de dados:*
+```sql
+-- score-service/store.py — tabela `scores` particionada por minigame (item 11)
+CREATE TABLE scores ( ..., game VARCHAR(16) NOT NULL, ..., PRIMARY KEY (id, game) )
+  PARTITION BY LIST (game);
+CREATE TABLE scores_jogo1 PARTITION OF scores FOR VALUES IN ('jogo1');
+```
+```bash
+# deploy/aws/lib/postgres.sh — réplica de leitura por streaming (item 10)
+wal_level = replica                                                  # no primário
+pg_basebackup -h "$PG_HOST_PRIVATE" -U replicador -D "$PGDATA" -Xs -R  # na réplica
+```
+
 **Justificativa (fechamento):** "cada item obrigatório da especificação tem um
 componente real por trás — não é teoria: é gRPC validando sessão, Kafka
 transportando o fim de partida, PostgreSQL particionado e replicado."
@@ -132,6 +200,34 @@ transportando o fim de partida, PostgreSQL particionado e replicado."
    (`systemctl stop spaceship-engine-jogo1`) e mostrar Jogos 2 e 3 **seguindo normais**.
 4. (Se der tempo) **revogação via gRPC:** apagar um usuário no PG e mostrar a
    reconexão sendo recusada.
+
+**Mapa de evidências no código (para abrir ao vivo).** Se a banca perguntar "onde
+está isso no código?", abrir o arquivo na linha e apontar (os recortes estão na
+Parte C; aqui é o "endereço" de cada um). *Linhas aproximadas — confira o nome da
+função/comentário ao lado, que não muda de lugar.*
+
+| Mecanismo | Arquivo : linha | O que apontar |
+|---|---|---|
+| gRPC — contrato | `auth-service/Protos/auth.proto:22` | `rpc ValidateToken (...)` (bloqueante) |
+| gRPC — chamada (cliente) | `game-gateway/authClient.js:56-66` | `c.ValidateToken({token},{deadline},…)` |
+| gRPC — servidor + revogação | `auth-service/Services/AuthValidationService.cs:78-80` | usuário existe? senão `Valid=false` |
+| gRPC + REST no mesmo serviço | `auth-service/Program.cs:63-64, 77` | Kestrel HTTP/1.1 (5000) + HTTP/2 (5005); `MapGrpcService` |
+| Kafka — produtor | `game-engine/kafka.js:71-74` | `producer.send({ topic, messages })` |
+| Kafka — publicação (fim de jogo) | `game-engine/games/jogo1.js:96-102` | `publishMatch({...})` |
+| Kafka — consumidor + commit | `score-service/consumer.py:53-60` | `record_match()` → `consumer.commit()` |
+| REST — Auth (login + BCrypt) | `auth-service/Controllers/AuthController.cs:43-52` | `[HttpPost("login")]` |
+| REST — Score (ranking) | `score-service/app.py:73-82` | `@app.get("/api/scores")` |
+| WebSocket — relay (roteamento) | `game-gateway/index.js:79-87` | `clientSocket.onAny(... proxies[game].emit ...)` |
+| Concorrência — loop 60 Hz/sala | `game-engine/games/jogo1.js:53-75` | `setInterval(…, TICK_RATE)` por sala |
+| Concorrência — thread do Score | `score-service/app.py:63-64` | `threading.Thread(target=run_consumer, daemon=True)` |
+| Part. funcional — 1 processo/jogo | `game-engine/server.js:15, 59` | `GAME` → `require('./games/'+GAME)` |
+| Part. de dados | `score-service/store.py:93-111` | `PARTITION BY LIST (game)` |
+| Replicação primary→réplica | `deploy/aws/lib/postgres.sh:30, 67-69` | `wal_level=replica` / `pg_basebackup -R` |
+
+**Ganchos com a demo (código ⇄ comportamento):** passo 2 (ranking aparecendo)
+⇄ `consumer.py:60` (commit do evento); passo 3 (isolamento de falha)
+⇄ `server.js:59` (processo por `GAME`); passo 4 (revogação)
+⇄ `AuthValidationService.cs:78` (checagem de existência do usuário).
 
 **Encerramento:** recapitular que os 3 paradigmas + concorrência + distribuição
 estão todos exercitados e demonstráveis ao vivo.
