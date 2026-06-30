@@ -218,7 +218,8 @@ module.exports = function createJogo3(io, deps) {
     const pid = (socket.data && socket.data.playerId) || socket.id;
     socket.on('j3_createRoom', (roomName) => {
         if (salasJogo3[roomName]) { socket.emit('j3_errorMsg', 'Já existe uma sala com este nome.'); return; }
-        salasJogo3[roomName] = { hostName: socket.user.sub, players: {}, enemies: [], playerBullets: [], enemyBullets: [], isGameRunning: false, playerCount: 0, score: 0, waveManager: { time: 0, phase: 'combat', bossWarningTimer: 0 } };
+        // donoId = quem criou; só ele pode iniciar a partida (ver 'j3_startGame').
+        salasJogo3[roomName] = { hostName: socket.user.sub, donoId: pid, players: {}, enemies: [], playerBullets: [], enemyBullets: [], isGameRunning: false, playerCount: 0, score: 0, waveManager: { time: 0, phase: 'combat', bossWarningTimer: 0 } };
         socket.emit('j3_roomCreated', roomName); j3_enviarListaSalas();
     });
     socket.on('j3_joinRoom', (roomName) => {
@@ -233,7 +234,9 @@ module.exports = function createJogo3(io, deps) {
     });
     socket.on('j3_startGame', () => {
         const roomName = socket.roomNameJ3; const room = salasJogo3[roomName];
-        if (roomName && room && !room.isGameRunning) {
+        // Só o DONO (quem criou) inicia — mesma trava do jogo2. Validação
+        // autoritativa: um jogador que só entrou não começa a missão pelos outros.
+        if (roomName && room && !room.isGameRunning && room.donoId === pid) {
             room.isGameRunning = true; io.to(roomName).emit('j3_gameStarted');
             room.intervalId = setInterval(() => j3_updateGameLogic(roomName), TICK_RATE); j3_enviarListaSalas();
         }

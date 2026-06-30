@@ -590,7 +590,7 @@
         <h2>Lobby da Sala: <span id="j2-nome-sala" style="color:#e0aaff;"></span></h2>
         <p>Jogadores na sala: <span id="j2-qtd-jogadores"
                 style="color: #00ffff; font-weight: bold; font-size: 20px;">1/4</span></p>
-        <button class="btn" onclick="j2_iniciarPartida()"
+        <button class="btn" id="j2-btn-iniciar" onclick="j2_iniciarPartida()"
             style="background: linear-gradient(135deg, #e67e22 0%, #d35400 100%); margin-top:20px;">Iniciar
             Partida</button>
         <button class="btn" onclick="j2_sairDaSala()"
@@ -633,7 +633,7 @@
         <h2>Missão: <span id="j3-nome-sala" style="color:#e0aaff;"></span></h2>
         <p>Jogadores na frota: <span id="j3-qtd-jogadores"
                 style="color: #00ffff; font-weight: bold; font-size: 20px;">1/4</span></p>
-        <button class="btn" onclick="j3_startGame()"
+        <button class="btn" id="j3-btn-iniciar" onclick="j3_startGame()"
             style="background: linear-gradient(135deg, #e67e22 0%, #d35400 100%); margin-top:20px;">Lançar
             Frota</button>
         <button class="btn" onclick="j3_leaveRoom()"
@@ -922,6 +922,8 @@
             });
             socket.on('atualizarLobby', (jogadores) => {
                 document.getElementById('j2-qtd-jogadores').innerText = `${jogadores.length}/4`;
+                // Só o dono da sala vê "Iniciar Partida" (o servidor também valida).
+                document.getElementById('j2-btn-iniciar').style.display = j2_isHost ? '' : 'none';
                 showScreen('game2-waiting');
             });
             socket.on('partidaIniciada', () => {
@@ -952,7 +954,7 @@
                 if (roomList.length === 0) { listElement.innerHTML = '<li style="text-align: center; color: #888;">Nenhuma missão aberta.</li>'; return; }
                 roomList.forEach(room => {
                     const li = document.createElement('li'); li.className = 'room-item';
-                    li.innerHTML = `<span>Missão de: <strong style="color:white;">${room.hostName || room.id}</strong></span><button class="btn" onclick="j3_joinRoom('${room.id}')">Entrar</button>`;
+                    li.innerHTML = `<span>Missão de: <strong style="color:white;">${room.hostName || room.id}</strong></span><button class="btn" onclick="j3_joinFromList('${room.id}')">Entrar</button>`;
                     listElement.appendChild(li);
                 });
             });
@@ -960,6 +962,8 @@
             socket.on('j3_roomJoined', (data) => {
                 document.getElementById('j3-nome-sala').innerText = data.roomName;
                 document.getElementById('j3-qtd-jogadores').innerText = `${data.playerCount}/4`;
+                // Só o dono da missão vê "Lançar Frota" (o servidor também valida).
+                document.getElementById('j3-btn-iniciar').style.display = j3_isHost ? '' : 'none';
                 showScreen('game3-waiting');
             });
             socket.on('j3_errorMsg', (msg) => alert(msg));
@@ -1046,12 +1050,13 @@
         // GAME 2 LOGIC
         // ==========================================
         function openGame2Lobby() { showScreen('game2-lobby'); socket.emit('join_game_lobby', { gameId: 'jogo2' }); }
-        function j2_criarSala() { const sala = document.getElementById('j2-input-sala').value; if (sala) { socket.emit('criarSala', sala); document.getElementById('j2-nome-sala').innerText = sala; } }
-        function j2_entrarSala(sala) { socket.emit('entrarSala', sala); document.getElementById('j2-nome-sala').innerText = sala; }
+        function j2_criarSala() { const sala = document.getElementById('j2-input-sala').value; if (sala) { j2_isHost = true; socket.emit('criarSala', sala); document.getElementById('j2-nome-sala').innerText = sala; } }
+        function j2_entrarSala(sala) { j2_isHost = false; socket.emit('entrarSala', sala); document.getElementById('j2-nome-sala').innerText = sala; }
         function j2_iniciarPartida() { socket.emit('iniciarPartida'); }
         function j2_sairDaSala() { socket.emit('sairDaSala'); showScreen('game2-lobby'); }
         function j2_abandonarPartida() { socket.emit('sairDaSala'); j2_inGame = false; j2_ctx.clearRect(0, 0, j2_canvas.width, j2_canvas.height); showScreen('game2-lobby'); }
         const j2_canvas = document.getElementById('j2-gameCanvas'); const j2_ctx = j2_canvas.getContext('2d'); let j2_inGame = false; let j2_estadoDoJogo = null;
+        let j2_isHost = false; // true só pra quem CRIOU a sala — controla o botão "Iniciar Partida"
         // Nave com fuselagem detalhada (asas recortadas + cabine), apontando para cima
         function j2_desenharNave(x, y, cor) {
             j2_ctx.save();
@@ -1105,12 +1110,14 @@
         // GAME 3 LOGIC
         // ==========================================
         function openGame3Lobby() { showScreen('game3-lobby'); socket.emit('join_game_lobby', { gameId: 'jogo3' }); }
-        function j3_createRoom() { const room = document.getElementById('j3-input-sala').value; if (room) socket.emit('j3_createRoom', room); }
+        function j3_createRoom() { const room = document.getElementById('j3-input-sala').value; if (room) { j3_isHost = true; socket.emit('j3_createRoom', room); } }
+        function j3_joinFromList(room) { j3_isHost = false; j3_joinRoom(room); } // convidado entrando pela lista (o dono entra via j3_roomCreated, sem zerar a flag)
         function j3_joinRoom(room) { socket.emit('j3_joinRoom', room); }
         function j3_startGame() { socket.emit('j3_startGame'); }
         function j3_leaveRoom() { socket.emit('j3_leaveRoom'); j3_inGame = false; showScreen('game3-lobby'); }
 
         const j3_canvas = document.getElementById('j3-gameCanvas'); const j3_ctx = j3_canvas.getContext('2d'); let j3_inGame = false; let j3_gameState = null; let j3_warningShown = false;
+        let j3_isHost = false; // true só pra quem CRIOU a missão — controla o botão "Lançar Frota"
         // Nave do jogador com fuselagem detalhada (asas recortadas + cabine); inimigos triangulares simples
         function j3_drawTriangle(x, y, color, isEnemy = false) {
             j3_ctx.save();

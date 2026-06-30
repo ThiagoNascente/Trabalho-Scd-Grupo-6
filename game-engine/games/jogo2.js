@@ -106,7 +106,12 @@ module.exports = function createJogo2(io, deps) {
   function register(socket) {
     const pid = (socket.data && socket.data.playerId) || socket.id;
     socket.on('criarSala', (idSala) => {
-        if (!salasJogo2[idSala]) salasJogo2[idSala] = { hostName: socket.user.sub, jogadores: {}, projeteis: [], asteroides: [], emAndamento: false, pontos: 0, loop: null };
+        // Nome de sala é ÚNICO: se já existe, NÃO entra na sala alheia — recusa
+        // (espelha o jogo3). Sem isso, "criar" uma sala com nome repetido caía na
+        // sala de outro grupo e você era arrastado quando ELES iniciavam.
+        if (salasJogo2[idSala]) { socket.emit('erroSala', 'Já existe uma sala com esse nome.'); return; }
+        // donoId = quem criou; só ele pode iniciar a partida (ver 'iniciarPartida').
+        salasJogo2[idSala] = { hostName: socket.user.sub, donoId: pid, jogadores: {}, projeteis: [], asteroides: [], emAndamento: false, pontos: 0, loop: null };
         j2_entrarNaSala(socket, pid, idSala);
     });
     socket.on('entrarSala', (idSala) => {
@@ -115,8 +120,12 @@ module.exports = function createJogo2(io, deps) {
     });
     socket.on('iniciarPartida', () => {
         const idSala = socket.idSalaJ2;
-        if (salasJogo2[idSala] && !salasJogo2[idSala].emAndamento) {
-            salasJogo2[idSala].emAndamento = true; io.to(idSala).emit('partidaIniciada'); j2_enviarListaSalas(); j2_iniciarLoopServidor(idSala);
+        const sala = salasJogo2[idSala];
+        // Só o DONO da sala (quem criou) inicia. Sem essa trava, um jogador que
+        // acabou de ENTRAR conseguia começar a partida pelos outros — pro host
+        // parecia "começar sozinha". Validação autoritativa no servidor.
+        if (sala && !sala.emAndamento && sala.donoId === pid) {
+            sala.emAndamento = true; io.to(idSala).emit('partidaIniciada'); j2_enviarListaSalas(); j2_iniciarLoopServidor(idSala);
         }
     });
     socket.on('acao', (acao) => applyAcao(pid, acao));
