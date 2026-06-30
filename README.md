@@ -326,7 +326,7 @@ Use **um único Security Group** (`spaceship-sg`) para as 6 instâncias. No tota
 | Regra | Type (menu) | Protocolo | Port range | Source | Para quê |
 |---|---|---|---|---|---|
 | 1 | **All traffic** | All | All | **Custom → o próprio `spaceship-sg`** | malha interna (banco, Redis, Kafka, gRPC, relay engines) |
-| 2 | **SSH** | TCP | `22` | **My IP** | administrar via SSH |
+| 2 | **SSH** | TCP | `22` | `0.0.0.0/0` | administrar via SSH |
 | 3 | **HTTP** | TCP | `80` | `0.0.0.0/0` | abrir o site (`spaceship-app`) |
 | 4 | **Custom TCP** | TCP | `3000` | `0.0.0.0/0` | jogo em tempo real (gateway / Socket.io) |
 | 5 | **Custom TCP** | TCP | `5000` | `0.0.0.0/0` | login e cadastro (Auth REST) |
